@@ -28,6 +28,7 @@ Brain-ML-Model/
 │   ├── train.py
 │   ├── evaluate.py
 │   └── predict.py
+├── app.py
 ├── src/
 │   ├── model.py
 │   ├── data_loader.py
@@ -88,6 +89,21 @@ python scripts/evaluate.py --model_path models/best_model.pth --data_dir data/te
 python scripts/predict.py --model_path models/best_model.pth --image_path path/to/image.jpg
 ```
 
+### Visual Interface (Real-time Testing)
+Launch the interactive web interface for real-time testing and visualization:
+```bash
+streamlit run app.py
+```
+
+The visual interface provides:
+- **Single Image Prediction**: Upload and analyze individual brain scan images with real-time results
+- **Batch Processing**: Process multiple images at once with detailed results table
+- **Interactive Visualizations**: View probability charts and confidence scores
+- **Model Selection**: Choose between different model architectures (ResNet50, EfficientNet)
+- **Real-time Feedback**: Get instant predictions with visual indicators
+
+Open your browser to the URL shown in the terminal (typically `http://localhost:8501`)
+
 ## Model Architecture
 
 The model uses a ResNet50 backbone (transfer learning) with custom classification head for binary classification (bleeding vs no bleeding).
@@ -99,4 +115,7 @@ The model uses a ResNet50 backbone (transfer learning) with custom classificatio
 - Model checkpointing and early stopping
 - Comprehensive evaluation metrics
 - Support for both CPU and GPU training
+- **Interactive web interface** for real-time testing and visualization
+- Batch processing capabilities
+- Visual feedback with probability charts and confidence scores
 
