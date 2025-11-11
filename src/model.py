@@ -6,6 +6,7 @@ Uses transfer learning with ResNet50 backbone
 import torch
 import torch.nn as nn
 import torchvision.models as models
+from torchvision.models import ResNet50_Weights, EfficientNet_B0_Weights
 
 
 class BrainBleedingClassifier(nn.Module):
@@ -26,7 +27,10 @@ class BrainBleedingClassifier(nn.Module):
         super(BrainBleedingClassifier, self).__init__()
         
         # Load ResNet50 backbone
-        self.backbone = models.resnet50(pretrained=pretrained)
+        if pretrained:
+            self.backbone = models.resnet50(weights=ResNet50_Weights.DEFAULT)
+        else:
+            self.backbone = models.resnet50(weights=None)
         
         # Freeze backbone if specified (for fine-tuning)
         if freeze_backbone:
@@ -69,14 +73,15 @@ class EfficientNetClassifier(nn.Module):
         try:
             import torchvision.models as models
             # Load EfficientNet
+            weights = EfficientNet_B0_Weights.DEFAULT if pretrained else None
             if model_name == 'efficientnet_b0':
-                self.backbone = models.efficientnet_b0(pretrained=pretrained)
+                self.backbone = models.efficientnet_b0(weights=weights)
             elif model_name == 'efficientnet_b1':
-                self.backbone = models.efficientnet_b1(pretrained=pretrained)
+                self.backbone = models.efficientnet_b1(weights=weights)
             elif model_name == 'efficientnet_b2':
-                self.backbone = models.efficientnet_b2(pretrained=pretrained)
+                self.backbone = models.efficientnet_b2(weights=weights)
             else:
-                self.backbone = models.efficientnet_b0(pretrained=pretrained)
+                self.backbone = models.efficientnet_b0(weights=weights)
             
             # Replace classifier
             num_features = self.backbone.classifier[1].in_features
@@ -87,7 +92,10 @@ class EfficientNetClassifier(nn.Module):
         except AttributeError:
             # Fallback to ResNet if EfficientNet not available
             print("EfficientNet not available, using ResNet50 instead")
-            self.backbone = models.resnet50(pretrained=pretrained)
+            if pretrained:
+                self.backbone = models.resnet50(weights=ResNet50_Weights.DEFAULT)
+            else:
+                self.backbone = models.resnet50(weights=None)
             num_features = self.backbone.fc.in_features
             self.backbone.fc = nn.Sequential(
                 nn.Dropout(0.5),

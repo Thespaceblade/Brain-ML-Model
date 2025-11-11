@@ -124,7 +124,7 @@ def get_transforms(split='train', img_size=(224, 224), use_albumentations=True):
                     contrast_limit=0.2,
                     p=0.5
                 ),
-                A.GaussNoise(var_limit=(10.0, 50.0), p=0.3),
+                A.GaussNoise(std_range=(0.1, 0.5), p=0.3),
                 A.GaussianBlur(blur_limit=3, p=0.3),
                 A.Normalize(
                     mean=[0.485, 0.456, 0.406],

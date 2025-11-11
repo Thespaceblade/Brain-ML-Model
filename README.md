@@ -1,5 +1,9 @@
 # Brain Bleeding Classification Model
 
+## 🔗 Links
+- **GitHub Repository**: [https://github.com/Thespaceblade/Brain-ML-Model](https://github.com/Thespaceblade/Brain-ML-Model)
+- **Portfolio**: [https://jasonindata.vercel.app](https://jasonindata.vercel.app)
+
 This project implements a deep learning model to classify brain bleeding from medical images (CT scans/MRI) using Convolutional Neural Networks (CNNs) with transfer learning.
 
 ## Project Structure

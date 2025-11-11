@@ -24,7 +24,6 @@ from src.utils import load_checkpoint, get_device
 # Page configuration
 st.set_page_config(
     page_title="Brain Bleeding Classifier",
-    page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -32,31 +31,548 @@ st.set_page_config(
 # Custom CSS for better styling
 st.markdown("""
     <style>
+    /* Global animations */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+    
+    @keyframes slideIn {
+        from { transform: translateX(-20px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+    }
+    
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Main header with animation */
     .main-header {
         font-size: 3rem;
         font-weight: bold;
-        color: #1f77b4;
+        background: linear-gradient(135deg, #1f77b4 0%, #42a5f5 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
         text-align: center;
         margin-bottom: 2rem;
+        animation: fadeIn 1s ease-in;
     }
+    
+    /* Prediction boxes with hover effects */
     .prediction-box {
         padding: 1.5rem;
-        border-radius: 10px;
+        border-radius: 15px;
         margin: 1rem 0;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        animation: fadeIn 0.6s ease-in;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
     }
+    
+    .prediction-box::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        transition: left 0.5s;
+    }
+    
+    .prediction-box:hover::before {
+        left: 100%;
+    }
+    
+    .prediction-box:hover {
+        transform: translateY(-5px) scale(1.02);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Bleeding prediction box */
     .bleeding {
-        background-color: #ffebee;
-        border: 2px solid #f44336;
+        background: linear-gradient(135deg, #ffcdd2 0%, #ffb3ba 100%);
+        border: 3px solid #d32f2f;
     }
+    
+    .bleeding:hover {
+        background: linear-gradient(135deg, #ffb3ba 0%, #ff9fa6 100%);
+        border-color: #b71c1c;
+        animation: pulse 0.6s ease-in-out;
+    }
+    
+    .bleeding h2 {
+        color: #b71c1c !important;
+        font-weight: 800 !important;
+        text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.8);
+        font-size: 2rem !important;
+        margin-bottom: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .bleeding:hover h2 {
+        transform: scale(1.05);
+        text-shadow: 3px 3px 6px rgba(255, 255, 255, 0.9);
+    }
+    
+    .bleeding h3 {
+        color: #c62828 !important;
+        font-weight: 700 !important;
+        text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.6);
+        font-size: 1.5rem !important;
+        transition: all 0.3s ease;
+    }
+    
+    .bleeding:hover h3 {
+        transform: translateX(5px);
+    }
+    
+    /* No bleeding prediction box */
     .no-bleeding {
-        background-color: #e8f5e9;
-        border: 2px solid #4caf50;
+        background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%);
+        border: 3px solid #388e3c;
     }
+    
+    .no-bleeding:hover {
+        background: linear-gradient(135deg, #a5d6a7 0%, #81c784 100%);
+        border-color: #2e7d32;
+        animation: pulse 0.6s ease-in-out;
+    }
+    
+    .no-bleeding h2 {
+        color: #1b5e20 !important;
+        font-weight: 800 !important;
+        text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.8);
+        font-size: 2rem !important;
+        margin-bottom: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .no-bleeding:hover h2 {
+        transform: scale(1.05);
+        text-shadow: 3px 3px 6px rgba(255, 255, 255, 0.9);
+    }
+    
+    .no-bleeding h3 {
+        color: #2e7d32 !important;
+        font-weight: 700 !important;
+        text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.6);
+        font-size: 1.5rem !important;
+        transition: all 0.3s ease;
+    }
+    
+    .no-bleeding:hover h3 {
+        transform: translateX(5px);
+    }
+    
+    /* Metric cards with hover effects */
     .metric-card {
-        background-color: #f5f5f5;
+        background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
         padding: 1rem;
-        border-radius: 5px;
+        border-radius: 10px;
         margin: 0.5rem 0;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+        border-color: #1f77b4;
+        background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
+    }
+    
+    /* Labels with hover effects */
+    .bleeding-label {
+        color: #b71c1c !important;
+        font-weight: 700 !important;
+        transition: all 0.3s ease;
+        display: inline-block;
+        cursor: pointer;
+    }
+    
+    .bleeding-label:hover {
+        transform: scale(1.1);
+        text-shadow: 2px 2px 4px rgba(183, 28, 28, 0.3);
+    }
+    
+    .no-bleeding-label {
+        color: #1b5e20 !important;
+        font-weight: 700 !important;
+        transition: all 0.3s ease;
+        display: inline-block;
+        cursor: pointer;
+    }
+    
+    .no-bleeding-label:hover {
+        transform: scale(1.1);
+        text-shadow: 2px 2px 4px rgba(27, 94, 32, 0.3);
+    }
+    
+    /* Button hover effects */
+    .stButton > button {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 8px;
+        font-weight: 600;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stButton > button::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s;
+    }
+    
+    .stButton > button:hover::before {
+        width: 300px;
+        height: 300px;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+    }
+    
+    .stButton > button:active {
+        transform: translateY(0);
+    }
+    
+    /* File uploader styling */
+    .stFileUploader > div {
+        transition: all 0.3s ease;
+        border-radius: 10px;
+    }
+    
+    .stFileUploader > div:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1e1e1e 0%, #2d2d2d 100%);
+    }
+    
+    /* Sidebar text styling */
+    [data-testid="stSidebar"] * {
+        color: #ffffff !important;
+    }
+    
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] h4 {
+        color: #ffffff !important;
+    }
+    
+    /* Sidebar input fields */
+    [data-testid="stSidebar"] .stTextInput > div > div > input {
+        background-color: #3d3d3d !important;
+        color: #ffffff !important;
+        border-color: #555555 !important;
+    }
+    
+    [data-testid="stSidebar"] .stTextInput > div > div > input:focus {
+        border-color: #1f77b4 !important;
+        background-color: #4d4d4d !important;
+    }
+    
+    /* Sidebar selectbox */
+    [data-testid="stSidebar"] .stSelectbox > div > div {
+        background-color: #3d3d3d !important;
+        color: #ffffff !important;
+    }
+    
+    /* Sidebar button styling */
+    [data-testid="stSidebar"] .stButton > button {
+        background-color: #1f77b4 !important;
+        color: #ffffff !important;
+    }
+    
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background-color: #1565c0 !important;
+    }
+    
+    /* Sidebar info/warning/error boxes */
+    [data-testid="stSidebar"] .stSuccess,
+    [data-testid="stSidebar"] .stInfo,
+    [data-testid="stSidebar"] .stWarning,
+    [data-testid="stSidebar"] .stError {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        border-color: rgba(255, 255, 255, 0.2) !important;
+    }
+    
+    /* Sidebar markdown text */
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] div {
+        color: #e0e0e0 !important;
+    }
+    
+    /* Sidebar code blocks */
+    [data-testid="stSidebar"] code {
+        background-color: #2d2d2d !important;
+        color: #ffffff !important;
+    }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        transition: all 0.3s ease;
+        border-radius: 8px 8px 0 0;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: rgba(31, 119, 180, 0.1);
+        transform: translateY(-2px);
+    }
+    
+    /* Metric display styling */
+    [data-testid="stMetricValue"] {
+        transition: all 0.3s ease;
+    }
+    
+    [data-testid="stMetricContainer"] {
+        transition: all 0.3s ease;
+        border-radius: 8px;
+        padding: 0.5rem;
+    }
+    
+    [data-testid="stMetricContainer"]:hover {
+        background-color: rgba(31, 119, 180, 0.05);
+        transform: translateY(-3px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    [data-testid="stMetricContainer"]:hover [data-testid="stMetricValue"] {
+        transform: scale(1.05);
+    }
+    
+    /* Image display with hover effect */
+    .stImage {
+        transition: all 0.3s ease;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    .stImage img {
+        transition: all 0.3s ease;
+    }
+    
+    .stImage:hover {
+        transform: scale(1.02);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+    
+    .stImage:hover img {
+        transform: scale(1.05);
+    }
+    
+    /* Dataframe styling */
+    .dataframe {
+        transition: all 0.3s ease;
+        border-radius: 8px;
+    }
+    
+    .dataframe:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Progress bar animation */
+    .stProgress > div > div > div {
+        background: linear-gradient(90deg, #1f77b4, #42a5f5, #1f77b4);
+        background-size: 200% 100%;
+        animation: shimmer 2s infinite;
+    }
+    
+    /* Spinner animation */
+    .stSpinner > div {
+        border-color: #1f77b4 transparent #1f77b4 transparent;
+        animation: spin 1s linear infinite;
+    }
+    
+    /* Success/Warning/Error message animations */
+    .stSuccess {
+        animation: slideIn 0.5s ease-out;
+        transition: all 0.3s ease;
+    }
+    
+    .stSuccess:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+    }
+    
+    .stWarning {
+        animation: shake 0.5s ease-out;
+        transition: all 0.3s ease;
+    }
+    
+    .stWarning:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 8px rgba(255, 152, 0, 0.3);
+    }
+    
+    .stError {
+        animation: shake 0.5s ease-out;
+        transition: all 0.3s ease;
+    }
+    
+    .stError:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 8px rgba(244, 67, 54, 0.3);
+    }
+    
+    /* Info boxes */
+    .stInfo {
+        transition: all 0.3s ease;
+        border-radius: 8px;
+    }
+    
+    .stInfo:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transform: translateX(5px);
+    }
+    
+    /* Subheader styling */
+    h2, h3 {
+        transition: all 0.3s ease;
+    }
+    
+    h2:hover, h3:hover {
+        color: #1f77b4;
+        transform: translateX(5px);
+    }
+    
+    /* Selectbox and input styling */
+    .stSelectbox > div > div {
+        transition: all 0.3s ease;
+    }
+    
+    .stSelectbox > div > div:hover {
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+    
+    .stTextInput > div > div > input {
+        transition: all 0.3s ease;
+        border-radius: 6px;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        box-shadow: 0 0 0 3px rgba(31, 119, 180, 0.2);
+        border-color: #1f77b4;
+        transform: scale(1.02);
+    }
+    
+    /* Chart container hover */
+    .js-plotly-plot {
+        transition: all 0.3s ease;
+        border-radius: 10px;
+    }
+    
+    .js-plotly-plot:hover {
+        transform: scale(1.01);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Header links */
+    .header-links {
+        text-align: center;
+        margin: 0.5rem 0;
+    }
+    
+    .header-links a {
+        color: #1f77b4;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+    }
+    
+    .header-links a:hover {
+        color: #1565c0;
+        text-decoration: underline;
+        background-color: rgba(31, 119, 180, 0.1);
+        transform: translateY(-2px);
+    }
+    
+    /* Smooth scrolling */
+    html {
+        scroll-behavior: smooth;
+    }
+    
+    /* Loading state */
+    .element-container {
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    /* Download button hover */
+    .stDownloadButton > button {
+        transition: all 0.3s ease;
+    }
+    
+    .stDownloadButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        transition: all 0.3s ease;
+    }
+    
+    .streamlit-expanderHeader:hover {
+        background-color: rgba(31, 119, 180, 0.05);
+        transform: translateX(5px);
+    }
+    
+    /* JSON display */
+    .stJson {
+        transition: all 0.3s ease;
+        border-radius: 8px;
+    }
+    
+    .stJson:hover {
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -198,9 +714,11 @@ def predict_image(model, image_tensor, device):
 
 
 def create_probability_chart(probabilities):
-    """Create a bar chart for class probabilities"""
+    """Create a bar chart for class probabilities with enhanced interactivity"""
     classes = ['No Bleeding', 'Bleeding']
-    colors = ['#4caf50', '#f44336']
+    # Higher contrast colors - darker greens and reds
+    colors = ['#2e7d32', '#c62828']  # Dark green and dark red
+    hover_colors = ['#1b5e20', '#b71c1c']  # Darker for hover
     
     fig = go.Figure(data=[
         go.Bar(
@@ -209,16 +727,49 @@ def create_probability_chart(probabilities):
             marker_color=colors,
             text=[f'{p*100:.2f}%' for p in probabilities],
             textposition='auto',
+            textfont=dict(
+                size=16,
+                color='white',
+                family='Arial Black'
+            ),
+            marker_line=dict(
+                color='white',
+                width=2
+            ),
+            marker_line_color='white',
+            hovertemplate='<b>%{x}</b><br>Probability: %{y:.2f}%<extra></extra>',
+            hoverlabel=dict(
+                bgcolor='rgba(255, 255, 255, 0.9)',
+                font_size=14,
+                font_family='Arial Black'
+            ),
         )
     ])
     
     fig.update_layout(
-        title='Prediction Probabilities',
-        xaxis_title='Class',
-        yaxis_title='Probability (%)',
+        title=dict(
+            text='Prediction Probabilities',
+            font=dict(size=20, color='#333', family='Arial Black')
+        ),
+        xaxis_title=dict(
+            text='Class',
+            font=dict(size=14, color='#333', family='Arial')
+        ),
+        yaxis_title=dict(
+            text='Probability (%)',
+            font=dict(size=14, color='#333', family='Arial')
+        ),
         yaxis=dict(range=[0, 100]),
         height=400,
-        template='plotly_white'
+        template='plotly_white',
+        font=dict(family='Arial', size=12),
+        xaxis=dict(
+            tickfont=dict(size=13, color='#333', family='Arial Black')
+        ),
+        hovermode='closest',
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        showlegend=False
     )
     
     return fig
@@ -227,11 +778,19 @@ def create_probability_chart(probabilities):
 def main():
     # Header
     st.markdown('<h1 class="main-header">🧠 Brain Bleeding Classifier</h1>', unsafe_allow_html=True)
+    
+    # Links subheadings
+    col_links1, col_links2 = st.columns(2)
+    with col_links1:
+        st.markdown('<div class="header-links"><p><a href="https://github.com/Thespaceblade/Brain-ML-Model" target="_blank">GitHub Repository</a></p></div>', unsafe_allow_html=True)
+    with col_links2:
+        st.markdown('<div class="header-links"><p><a href="https://jasonindata.vercel.app" target="_blank">Portfolio</a></p></div>', unsafe_allow_html=True)
+    
     st.markdown("---")
     
     # Sidebar for model configuration
     with st.sidebar:
-        st.header("⚙️ Model Configuration")
+        st.header("Model Configuration")
         
         # Model selection
         model_name = st.selectbox(
@@ -250,7 +809,7 @@ def main():
         )
         
         # Inspect checkpoint button
-        if st.button("🔍 Inspect Checkpoint", use_container_width=True):
+        if st.button("Inspect Checkpoint", use_container_width=True):
             if model_path_input and os.path.exists(model_path_input):
                 try:
                     info = inspect_checkpoint(model_path_input)
@@ -261,7 +820,7 @@ def main():
                 st.warning("Please enter a valid model path first")
         
         # Load model button
-        if st.button("🔄 Load Model", type="primary", use_container_width=True):
+        if st.button("Load Model", type="primary", use_container_width=True):
             if os.path.exists(model_path_input):
                 try:
                     with st.spinner("Loading model..."):
@@ -274,32 +833,32 @@ def main():
                         st.session_state.device = device
                         st.session_state.model_loaded = True
                         st.session_state.model_path = model_path_input
-                    st.success(f"✅ Model loaded successfully!")
+                    st.success(f"Model loaded successfully!")
                     device_name = "GPU" if device.type == 'cuda' else "CPU"
-                    st.info(f"🖥️ Running on: {device_name}")
+                    st.info(f"Running on: {device_name}")
                 except Exception as e:
                     error_msg = str(e)
-                    st.error(f"❌ Error loading model: {error_msg}")
-                    with st.expander("🔍 Error Details", expanded=False):
+                    st.error(f"Error loading model: {error_msg}")
+                    with st.expander("Error Details", expanded=False):
                         st.code(error_msg)
                     st.session_state.model_loaded = False
                     # Clear failed model state
                     st.session_state.model = None
             else:
-                st.error(f"❌ Model file not found: {model_path_input}")
-                st.info(f"💡 Make sure the path is correct. Current working directory: {os.getcwd()}")
+                st.error(f"Model file not found: {model_path_input}")
+                st.info(f"Make sure the path is correct. Current working directory: {os.getcwd()}")
                 st.session_state.model_loaded = False
         
         # Model status
         st.markdown("---")
         st.subheader("Model Status")
         if st.session_state.model_loaded:
-            st.success("✅ Model Ready")
+            st.success("Model Ready")
             if st.session_state.device:
                 device_name = "GPU" if st.session_state.device.type == 'cuda' else "CPU"
-                st.info(f"🖥️ Running on: {device_name}")
+                st.info(f"Running on: {device_name}")
         else:
-            st.warning("⚠️ Model Not Loaded")
+            st.warning("Model Not Loaded")
             st.info("Please load a model to make predictions")
         
         # Image size setting
@@ -315,19 +874,19 @@ def main():
         )
         
         # Clear cache button
-        if st.button("🗑️ Clear Cache", use_container_width=True):
+        if st.button("Clear Cache", use_container_width=True):
             st.cache_resource.clear()
             st.rerun()
     
     # Main content area
-    tab1, tab2, tab3 = st.tabs(["📸 Single Image", "📁 Batch Processing", "ℹ️ About"])
+    tab1, tab2, tab3 = st.tabs(["Single Image", "Batch Processing", "About"])
     
     # Tab 1: Single Image Prediction
     with tab1:
         st.header("Single Image Prediction")
         
         if not st.session_state.model_loaded:
-            st.warning("⚠️ Please load a model in the sidebar before making predictions.")
+            st.warning("Please load a model in the sidebar before making predictions.")
         else:
             # Image upload
             uploaded_file = st.file_uploader(
@@ -341,15 +900,15 @@ def main():
                 col1, col2 = st.columns([1, 1])
                 
                 with col1:
-                    st.subheader("📷 Input Image")
+                    st.subheader("Input Image")
                     image = Image.open(uploaded_file)
                     st.image(image, caption="Uploaded Image", use_container_width=True)
                 
                 with col2:
-                    st.subheader("🔮 Prediction Results")
+                    st.subheader("Prediction Results")
                     
                     # Predict button
-                    if st.button("🔍 Predict", type="primary", use_container_width=True):
+                    if st.button("Predict", type="primary", use_container_width=True):
                         with st.spinner("Analyzing image..."):
                             # Preprocess image
                             image_tensor = preprocess_image(image, img_size)
@@ -376,7 +935,7 @@ def main():
                         if prediction == "Bleeding":
                             st.markdown(
                                 f'<div class="prediction-box bleeding">'
-                                f'<h2>⚠️ {prediction} Detected</h2>'
+                                f'<h2>{prediction} Detected</h2>'
                                 f'<h3>Confidence: {confidence*100:.2f}%</h3>'
                                 f'</div>',
                                 unsafe_allow_html=True
@@ -384,7 +943,7 @@ def main():
                         else:
                             st.markdown(
                                 f'<div class="prediction-box no-bleeding">'
-                                f'<h2>✅ {prediction}</h2>'
+                                f'<h2>{prediction}</h2>'
                                 f'<h3>Confidence: {confidence*100:.2f}%</h3>'
                                 f'</div>',
                                 unsafe_allow_html=True
@@ -395,21 +954,31 @@ def main():
                         st.plotly_chart(fig, use_container_width=True)
                         
                         # Detailed metrics
-                        st.subheader("📊 Detailed Probabilities")
+                        st.subheader("Detailed Probabilities")
                         col3, col4 = st.columns(2)
                         
                         with col3:
+                            st.markdown(
+                                '<p class="no-bleeding-label" style="font-size: 1.2rem; margin-bottom: 0.5rem;">No Bleeding</p>',
+                                unsafe_allow_html=True
+                            )
                             st.metric(
-                                "No Bleeding",
+                                "",
                                 f"{probabilities[0]*100:.2f}%",
-                                delta=f"{probabilities[0]*100 - 50:.2f}%"
+                                delta=f"{probabilities[0]*100 - 50:.2f}%",
+                                delta_color="normal"
                             )
                         
                         with col4:
+                            st.markdown(
+                                '<p class="bleeding-label" style="font-size: 1.2rem; margin-bottom: 0.5rem;">Bleeding</p>',
+                                unsafe_allow_html=True
+                            )
                             st.metric(
-                                "Bleeding",
+                                "",
                                 f"{probabilities[1]*100:.2f}%",
-                                delta=f"{probabilities[1]*100 - 50:.2f}%"
+                                delta=f"{probabilities[1]*100 - 50:.2f}%",
+                                delta_color="normal"
                             )
     
     # Tab 2: Batch Processing
@@ -417,7 +986,7 @@ def main():
         st.header("Batch Image Processing")
         
         if not st.session_state.model_loaded:
-            st.warning("⚠️ Please load a model in the sidebar before processing images.")
+            st.warning("Please load a model in the sidebar before processing images.")
         else:
             uploaded_files = st.file_uploader(
                 "Upload multiple images",
@@ -427,7 +996,7 @@ def main():
             )
             
             if uploaded_files and len(uploaded_files) > 0:
-                if st.button("🔍 Process All Images", type="primary", use_container_width=True):
+                if st.button("Process All Images", type="primary", use_container_width=True):
                     results = []
                     progress_bar = st.progress(0)
                     status_text = st.empty()
@@ -465,10 +1034,10 @@ def main():
                         
                         progress_bar.progress((idx + 1) / len(uploaded_files))
                     
-                    status_text.text("✅ Processing complete!")
+                    status_text.text("Processing complete!")
                     
                     # Display results table
-                    st.subheader("📋 Results")
+                    st.subheader("Results")
                     import pandas as pd
                     df = pd.DataFrame(results)
                     st.dataframe(df, use_container_width=True)
@@ -476,7 +1045,7 @@ def main():
                     # Download results as CSV
                     csv = df.to_csv(index=False)
                     st.download_button(
-                        label="📥 Download Results as CSV",
+                        label="Download Results as CSV",
                         data=csv,
                         file_name="predictions.csv",
                         mime="text/csv",
@@ -484,7 +1053,7 @@ def main():
                     )
                     
                     # Summary statistics
-                    st.subheader("📊 Summary Statistics")
+                    st.subheader("Summary Statistics")
                     if len(results) > 0:
                         bleeding_count = sum(1 for r in results if r['Prediction'] == 'Bleeding')
                         no_bleeding_count = sum(1 for r in results if r['Prediction'] == 'No Bleeding')
@@ -492,18 +1061,31 @@ def main():
                         col5, col6 = st.columns(2)
                         with col5:
                             st.metric("Total Images", len(results))
-                            st.metric("Bleeding Detected", bleeding_count)
+                            st.markdown(
+                                '<p class="bleeding-label" style="font-size: 1.1rem; margin-top: 1rem; margin-bottom: 0.3rem;">Bleeding Detected</p>',
+                                unsafe_allow_html=True
+                            )
+                            st.metric("", bleeding_count)
                         with col6:
-                            st.metric("No Bleeding", no_bleeding_count)
+                            st.markdown(
+                                '<p class="no-bleeding-label" style="font-size: 1.1rem; margin-top: 1rem; margin-bottom: 0.3rem;">No Bleeding</p>',
+                                unsafe_allow_html=True
+                            )
+                            st.metric("", no_bleeding_count)
                             bleeding_percentage = (bleeding_count / len(results)) * 100 if results else 0
-                            st.metric("Bleeding Rate", f"{bleeding_percentage:.1f}%")
+                            st.markdown('<br>', unsafe_allow_html=True)
+                            st.markdown(
+                                '<p class="bleeding-label" style="font-size: 1.1rem; margin-bottom: 0.3rem;">Bleeding Rate</p>',
+                                unsafe_allow_html=True
+                            )
+                            st.metric("", f"{bleeding_percentage:.1f}%")
     
     # Tab 3: About
     with tab3:
         st.header("About This Application")
         
         st.markdown("""
-        ### 🧠 Brain Bleeding Classification Model
+        ### Brain Bleeding Classification Model
         
         This application provides a real-time interface for testing a deep learning model 
         that classifies brain medical images (CT scans or MRI) to detect bleeding.
