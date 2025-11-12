@@ -21,6 +21,16 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.model import get_model
 from src.utils import get_device
 
+# Try to setup model file if it doesn't exist (for deployment)
+try:
+    import setup_model
+    # Only run setup if model doesn't exist
+    if not os.path.exists("models/best_model.pth"):
+        setup_model.setup_model()
+except Exception as e:
+    # Silently fail if setup_model doesn't work - not critical
+    pass
+
 # Page configuration
 st.set_page_config(
     page_title="Brain Bleeding Classifier",
@@ -947,8 +957,56 @@ def main():
                     st.session_state.device = None
             else:
                 st.error(f"Model file not found: {model_path_input}")
-                st.info(f"Make sure the path is correct.\n\nCurrent working directory: {os.getcwd()}\nApp directory: {os.path.dirname(os.path.abspath(__file__))}")
-                st.info("💡 Tip: In Streamlit Cloud, make sure the model file is committed to your repository or uploaded to the deployment.")
+                st.info(f"**Current directory**: {os.getcwd()}\n**App directory**: {os.path.dirname(os.path.abspath(__file__))}")
+                
+                # Show deployment instructions
+                with st.expander("📋 How to fix this in Streamlit Cloud", expanded=True):
+                    st.markdown("""
+                    ### Option 1: Use Git LFS (Recommended for large models)
+                    1. Install Git LFS: `git lfs install`
+                    2. Track model files: `git lfs track "*.pth"` and `git lfs track "models/*"`
+                    3. Add `.gitattributes`: `git add .gitattributes`
+                    4. Add model file: `git add models/best_model.pth`
+                    5. Commit and push: `git commit -m "Add model with LFS" && git push`
+                    
+                    ### Option 2: Upload to Cloud Storage
+                    1. Upload model to Google Drive, Dropbox, or S3
+                    2. Set `MODEL_URL` in Streamlit Cloud secrets
+                    3. The app will automatically download the model
+                    
+                    ### Option 3: Remove from .gitignore (Not recommended for large files)
+                    1. Edit `.gitignore` and remove `models/` and `*.pth`
+                    2. Add model: `git add models/best_model.pth`
+                    3. Commit and push (may take time for large files)
+                    
+                    ### Option 4: Manual Upload
+                    Use the file uploader below to upload your model file directly.
+                    """)
+                
+                # Add file uploader for model file
+                st.markdown("---")
+                st.subheader("Upload Model File")
+                uploaded_model = st.file_uploader(
+                    "Upload your model file (.pth)",
+                    type=['pth'],
+                    help="Upload your trained model checkpoint file"
+                )
+                
+                if uploaded_model is not None:
+                    # Save uploaded model
+                    try:
+                        os.makedirs("models", exist_ok=True)
+                        model_save_path = os.path.join("models", uploaded_model.name)
+                        with open(model_save_path, "wb") as f:
+                            f.write(uploaded_model.getbuffer())
+                        st.success(f"Model saved to {model_save_path}")
+                        st.info("Please enter the model path above and click 'Load Model'")
+                        # Update the default path
+                        if model_path_input == "models/best_model.pth":
+                            st.info(f"💡 Try using path: {model_save_path}")
+                    except Exception as e:
+                        st.error(f"Error saving model: {str(e)}")
+                
                 st.session_state.model_loaded = False
         
         # Model status

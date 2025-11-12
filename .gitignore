@@ -39,10 +39,14 @@ env/
 *.ipynb
 
 # Model checkpoints and logs
-models/
+# Note: models/*.pth files are tracked with Git LFS
+# Uncomment the line below if you want to ignore all model files
+# models/
 logs/
 results/
-*.pth
+# Note: *.pth files are tracked with Git LFS
+# Uncomment the line below if you want to ignore all .pth files
+# *.pth
 *.pt
 *.ckpt
 
