@@ -8,7 +8,6 @@ import os
 import urllib.request
 import hashlib
 
-MODEL_URL = os.getenv("MODEL_URL", "")  # Set via environment variable or Streamlit secrets
 MODEL_PATH = "models/best_model.pth"
 MODEL_DIR = "models"
 
@@ -43,8 +42,14 @@ def check_model_exists(path):
     return True
 
 
-def setup_model():
-    """Setup model file for deployment."""
+def setup_model(model_url=None):
+    """Setup model file for deployment.
+    
+    Args:
+        model_url: Optional URL to download model from. If not provided, will check:
+            - Streamlit secrets (MODEL_URL)
+            - Environment variable (MODEL_URL)
+    """
     # Check if model already exists
     if check_model_exists(MODEL_PATH):
         print(f"Model file already exists at {MODEL_PATH}")
@@ -52,17 +57,32 @@ def setup_model():
         print(f"Model size: {file_size:.2f} MB")
         return True
     
+    # Get model URL from parameter, Streamlit secrets, or environment variable
+    url = model_url
+    if not url:
+        try:
+            import streamlit as st
+            # Check if we're in a Streamlit context and secrets are available
+            if hasattr(st, 'secrets') and 'MODEL_URL' in st.secrets:
+                url = st.secrets['MODEL_URL']
+        except:
+            pass
+        
+        # Fall back to environment variable
+        if not url:
+            url = os.getenv("MODEL_URL", "")
+    
     # Try to download from URL if provided
-    if MODEL_URL:
-        print(f"Model file not found. Attempting to download from {MODEL_URL}...")
-        if download_model(MODEL_URL, MODEL_PATH):
+    if url:
+        print(f"Model file not found. Attempting to download from {url}...")
+        if download_model(url, MODEL_PATH):
             return True
         else:
             print("Failed to download model from URL.")
             return False
     else:
         print(f"Model file not found at {MODEL_PATH}")
-        print("To download model automatically, set MODEL_URL environment variable.")
+        print("To download model automatically, set MODEL_URL in Streamlit secrets or as environment variable.")
         print("Alternatively, ensure the model file is in the repository or use Git LFS.")
         return False
 

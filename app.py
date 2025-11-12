@@ -21,15 +21,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.model import get_model
 from src.utils import get_device
 
-# Try to setup model file if it doesn't exist (for deployment)
-try:
-    import setup_model
-    # Only run setup if model doesn't exist
-    if not os.path.exists("models/best_model.pth"):
-        setup_model.setup_model()
-except Exception as e:
-    # Silently fail if setup_model doesn't work - not critical
-    pass
+# Import setup_model for later use (after Streamlit is initialized)
+import setup_model
 
 # Page configuration
 st.set_page_config(
@@ -854,6 +847,15 @@ def create_probability_chart(probabilities):
 
 
 def main():
+    # Try to setup model file if it doesn't exist (for deployment)
+    # This runs after Streamlit is initialized, so secrets are available
+    try:
+        if not os.path.exists("models/best_model.pth"):
+            setup_model.setup_model()
+    except Exception as e:
+        # Silently fail if setup_model doesn't work - not critical
+        pass
+    
     # Header
     st.markdown('<h1 class="main-header">🧠 Brain Bleeding Classifier</h1>', unsafe_allow_html=True)
     
