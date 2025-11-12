@@ -784,6 +784,46 @@ def predict_image(model, image_tensor, device):
     return prediction, confidence_score, prob_array
 
 
+def get_test_images():
+    """Get available test images from the data/test directory"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    bleeding_dir = os.path.join(base_dir, "data", "test", "bleeding")
+    no_bleeding_dir = os.path.join(base_dir, "data", "test", "no_bleeding")
+    
+    test_images = {
+        'Bleeding': [],
+        'No Bleeding': []
+    }
+    
+    # Get bleeding images
+    if os.path.exists(bleeding_dir):
+        bleeding_files = sorted([f for f in os.listdir(bleeding_dir) 
+                                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
+        test_images['Bleeding'] = bleeding_files[:50]  # Limit to first 50 for performance
+    
+    # Get no bleeding images
+    if os.path.exists(no_bleeding_dir):
+        no_bleeding_files = sorted([f for f in os.listdir(no_bleeding_dir) 
+                                    if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
+        test_images['No Bleeding'] = no_bleeding_files[:50]  # Limit to first 50 for performance
+    
+    return test_images
+
+
+def load_test_image(category, filename):
+    """Load a test image from the data/test directory"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    if category == 'Bleeding':
+        image_path = os.path.join(base_dir, "data", "test", "bleeding", filename)
+    else:
+        image_path = os.path.join(base_dir, "data", "test", "no_bleeding", filename)
+    
+    if os.path.exists(image_path):
+        return Image.open(image_path)
+    else:
+        raise FileNotFoundError(f"Test image not found: {image_path}")
+
+
 def create_probability_chart(probabilities):
     """Create a bar chart for class probabilities with enhanced interactivity"""
     classes = ['No Bleeding', 'Bleeding']
@@ -865,6 +905,109 @@ def main():
         st.markdown('<div class="header-links"><p><a href="https://github.com/Thespaceblade/Brain-ML-Model" target="_blank">GitHub Repository</a></p></div>', unsafe_allow_html=True)
     with col_links2:
         st.markdown('<div class="header-links"><p><a href="https://jasonindata.vercel.app" target="_blank">Portfolio</a></p></div>', unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Instructions Section
+    with st.expander("How to Use This Application", expanded=False):
+        st.markdown("""
+        ### Quick Start Guide
+        
+        **Step 1: Load Your Model**
+        - In the sidebar, enter the path to your trained model (default: `models/best_model.pth`)
+        - Select the model architecture (ResNet50, EfficientNet-B0, or EfficientNet-B1)
+        - Click **"Load Model"** to load the model into memory
+        - Wait for the success message indicating the model is ready
+        
+        **Step 2: Select or Upload an Image**
+        - Navigate to the **"Single Image"** tab for individual predictions
+        - Choose **"Upload Image"** to use your own brain scan image, or **"Use Test Image"** to select from available test images
+        - Test images are available for both bleeding and no bleeding cases - perfect for trying out the model without your own images
+        - Or use the **"Batch Processing"** tab for multiple images
+        - Supported formats: PNG, JPG, JPEG, BMP, TIFF
+        
+        **Step 3: Get Predictions**
+        - Click the **"Predict"** button (for single images)
+        - Or click **"Process All Images"** (for batch processing)
+        - View the results with confidence scores and probability breakdown
+        
+        ---
+        
+        ### Detailed Instructions
+        
+        #### Single Image Prediction
+        1. **Load Model**: Ensure a model is loaded in the sidebar (check "Model Status")
+        2. **Select Image Source**: 
+           - Choose **"Upload Image"** to upload your own brain scan image
+           - Or choose **"Use Test Image"** to select from available test images (both bleeding and no bleeding examples are available)
+        3. **Select Test Image** (if using test images): Choose the category (Bleeding or No Bleeding) and then select a specific test image
+        4. **Predict**: Click the "Predict" button to analyze the image (test images are processed through the model just like uploaded images)
+        5. **View Results**: 
+           - Prediction result (Bleeding / No Bleeding)
+           - Confidence score (0-100%)
+           - Detailed probability breakdown
+           - Interactive probability chart
+        
+        #### Batch Processing
+        1. **Load Model**: Ensure a model is loaded in the sidebar
+        2. **Upload Multiple Images**: Select multiple images using the file uploader
+        3. **Process**: Click "Process All Images" to analyze all uploaded images
+        4. **Review Results**:
+           - View results in a sortable table
+           - Check summary statistics
+           - Download results as CSV file
+        
+        #### Model Configuration (Sidebar)
+        - **Model Architecture**: Select the architecture that matches your trained model
+        - **Model Path**: Enter the path to your `.pth` model checkpoint file
+        - **Image Size**: Adjust the input image size (default: 224x224)
+        - **Model Status**: Check if the model is loaded and ready
+        - **Device Info**: See whether the model is running on GPU or CPU
+        
+        ---
+        
+        ### Tips & Best Practices
+        
+        - **Image Quality**: Use high-quality images for better predictions
+        - **Image Format**: Ensure images are in supported formats (PNG, JPG, JPEG, BMP, TIFF)
+        - **Model Matching**: Make sure the selected architecture matches your trained model
+        - **File Paths**: Use relative paths (e.g., `models/best_model.pth`) for easier portability
+        - **GPU Usage**: The app automatically uses GPU if available, otherwise falls back to CPU
+        
+        ---
+        
+        ### Important Notes
+        
+        - This tool is for **research and educational purposes only**
+        - It should **not be used as a substitute for professional medical diagnosis**
+        - Always consult with medical professionals for actual diagnosis
+        - Model predictions are based on training data and may not be 100% accurate
+        
+        ---
+        
+        ### Troubleshooting
+        
+        **Model Not Loading?**
+        - Check that the model file path is correct
+        - Ensure the file exists in the specified location
+        - Verify the model architecture matches your trained model
+        - Check the error message in the sidebar for details
+        
+        **Images Not Uploading?**
+        - Ensure images are in supported formats (PNG, JPG, JPEG, BMP, TIFF)
+        - Check file size (very large files may take longer to process)
+        - Try converting images to PNG or JPG format
+        
+        **Slow Performance?**
+        - Use GPU if available (check device info in sidebar)
+        - Reduce image size using the slider in the sidebar
+        - Process fewer images at once in batch mode
+        
+        **Need Help?**
+        - Check the "About" tab for technical details
+        - Review the GitHub repository for documentation
+        - Check error messages for specific issues
+        """)
     
     st.markdown("---")
     
@@ -1050,21 +1193,74 @@ def main():
         if not st.session_state.model_loaded:
             st.warning("Please load a model in the sidebar before making predictions.")
         else:
-            # Image upload
-            uploaded_file = st.file_uploader(
-                "Upload a brain scan image",
-                type=['png', 'jpg', 'jpeg', 'bmp', 'tiff'],
-                help="Upload a medical image (CT scan or MRI) for classification"
+            # Image source selection
+            image_source = st.radio(
+                "Choose image source:",
+                ["Upload Image", "Use Test Image"],
+                horizontal=True,
+                help="Upload your own image or select from available test images"
             )
             
-            if uploaded_file is not None:
-                # Display uploaded image
+            image = None
+            image_source_name = None
+            
+            if image_source == "Upload Image":
+                # Image upload
+                uploaded_file = st.file_uploader(
+                    "Upload a brain scan image",
+                    type=['png', 'jpg', 'jpeg', 'bmp', 'tiff'],
+                    help="Upload a medical image (CT scan or MRI) for classification"
+                )
+                
+                if uploaded_file is not None:
+                    image = Image.open(uploaded_file)
+                    image_source_name = uploaded_file.name
+            else:
+                # Test image selection
+                test_images = get_test_images()
+                
+                if len(test_images['Bleeding']) == 0 and len(test_images['No Bleeding']) == 0:
+                    st.warning("No test images found in data/test directory.")
+                else:
+                    # Category selection
+                    available_categories = []
+                    if len(test_images['Bleeding']) > 0:
+                        available_categories.append('Bleeding')
+                    if len(test_images['No Bleeding']) > 0:
+                        available_categories.append('No Bleeding')
+                    
+                    if len(available_categories) > 0:
+                        selected_category = st.selectbox(
+                            "Select image category:",
+                            available_categories,
+                            help="Choose whether to test with bleeding or no bleeding images"
+                        )
+                        
+                        if selected_category:
+                            available_images = test_images[selected_category]
+                            
+                            if len(available_images) > 0:
+                                selected_image = st.selectbox(
+                                    f"Select a {selected_category.lower()} test image:",
+                                    available_images,
+                                    help="Choose a test image to analyze. The model will process this image just like an uploaded image."
+                                )
+                                
+                                if selected_image:
+                                    try:
+                                        image = load_test_image(selected_category, selected_image)
+                                        image_source_name = f"{selected_category} - {selected_image}"
+                                    except Exception as e:
+                                        st.error(f"Error loading test image: {str(e)}")
+            
+            # Display image and prediction interface
+            if image is not None:
                 col1, col2 = st.columns([1, 1])
                 
                 with col1:
                     st.subheader("Input Image")
-                    image = Image.open(uploaded_file)
-                    st.image(image, caption="Uploaded Image", use_container_width=True)
+                    caption = image_source_name if image_source_name else "Selected Image"
+                    st.image(image, caption=caption, use_container_width=True)
                 
                 with col2:
                     st.subheader("Prediction Results")
@@ -1086,6 +1282,7 @@ def main():
                             st.session_state.prediction = prediction
                             st.session_state.confidence = confidence
                             st.session_state.probabilities = probabilities
+                            st.session_state.image_source_name = image_source_name
                     
                     # Show results if available
                     if 'prediction' in st.session_state:
