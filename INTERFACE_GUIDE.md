@@ -76,3 +76,4 @@
 - **Device**: Automatically detects and uses GPU if available
 
 
+

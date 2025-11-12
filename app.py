@@ -19,7 +19,7 @@ from io import BytesIO
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.model import get_model
-from src.utils import load_checkpoint, get_device
+from src.utils import get_device
 
 # Page configuration
 st.set_page_config(
@@ -586,16 +586,55 @@ if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
 if 'model_path' not in st.session_state:
     st.session_state.model_path = None
+if 'auto_load_attempted' not in st.session_state:
+    st.session_state.auto_load_attempted = False
+
+
+def resolve_model_path(model_path):
+    """
+    Resolve model path by trying multiple possible locations.
+    
+    Args:
+        model_path: Path to model file (can be relative or absolute)
+    
+    Returns:
+        Resolved absolute path if found, None otherwise
+    """
+    if not model_path:
+        return None
+    
+    # If absolute path and exists, return it
+    if os.path.isabs(model_path) and os.path.exists(model_path):
+        return model_path
+    
+    # Try multiple possible locations
+    possible_paths = [
+        model_path,  # Original path
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), model_path),  # Relative to app.py
+        os.path.join(os.getcwd(), model_path),  # Relative to current working directory
+    ]
+    
+    for path in possible_paths:
+        if os.path.exists(path):
+            return os.path.abspath(path)
+    
+    return None
 
 
 def inspect_checkpoint(model_path):
     """Inspect checkpoint file to see its structure"""
+    # Resolve path first
+    resolved_path = resolve_model_path(model_path)
+    if not resolved_path:
+        return {'error': f'Model file not found at: {model_path}'}
+    
     try:
-        checkpoint = torch.load(model_path, map_location='cpu')
+        checkpoint = torch.load(resolved_path, map_location='cpu')
         info = {
             'type': type(checkpoint).__name__,
             'keys': None,
-            'size_mb': os.path.getsize(model_path) / (1024 * 1024)
+            'size_mb': os.path.getsize(resolved_path) / (1024 * 1024),
+            'path': resolved_path
         }
         
         if isinstance(checkpoint, dict):
@@ -614,11 +653,32 @@ def inspect_checkpoint(model_path):
         
         return info
     except Exception as e:
-        return {'error': str(e)}
+        return {'error': str(e), 'path': resolved_path}
 
 
-def load_model_robust(model_path, model_name='resnet50'):
-    """Load model with robust error handling for different checkpoint formats"""
+@st.cache_resource
+def load_model_robust(_model_path_abs, model_name='resnet50'):
+    """
+    Load model with robust error handling for different checkpoint formats.
+    Uses Streamlit caching to avoid reloading the model on every rerun.
+    
+    Note: The model_path parameter is prefixed with _ to indicate it's used for cache invalidation.
+    We use the absolute path as the cache key to ensure consistency across environments.
+    
+    Args:
+        _model_path_abs: Absolute path to model checkpoint file (must be resolved before calling)
+        model_name: Name of model architecture
+    
+    Returns:
+        Tuple of (model, device)
+    """
+    # Validate that the path exists (should be resolved before calling this function)
+    if not os.path.exists(_model_path_abs):
+        raise FileNotFoundError(
+            f"Model file not found at: {_model_path_abs}\n\n"
+            f"Please check the file path and ensure the model file exists."
+        )
+    
     device = get_device()
     
     # Create model
@@ -631,7 +691,8 @@ def load_model_robust(model_path, model_name='resnet50'):
     
     # Load checkpoint with format detection
     try:
-        checkpoint = torch.load(model_path, map_location='cpu')
+        # Use map_location to ensure compatibility across devices
+        checkpoint = torch.load(_model_path_abs, map_location=device)
         
         # Handle different checkpoint formats
         if isinstance(checkpoint, dict):
@@ -668,10 +729,17 @@ def load_model_robust(model_path, model_name='resnet50'):
         
     except Exception as e:
         # Get checkpoint info for debugging
-        checkpoint_info = inspect_checkpoint(model_path)
-        error_details = f"Failed to load model checkpoint: {str(e)}\n\n"
-        error_details += f"Checkpoint info: {checkpoint_info}\n\n"
-        error_details += "Expected format: dict with 'model_state_dict' or 'state_dict' key, or direct state_dict."
+        try:
+            checkpoint_info = inspect_checkpoint(_model_path_abs)
+            error_details = f"Failed to load model checkpoint: {str(e)}\n\n"
+            error_details += f"Checkpoint info: {checkpoint_info}\n\n"
+            error_details += "Expected format: dict with 'model_state_dict' or 'state_dict' key, or direct state_dict."
+        except:
+            error_details = f"Failed to load model checkpoint: {str(e)}\n\n"
+            error_details += f"Model path: {_model_path_abs}\n"
+            error_details += f"File exists: {os.path.exists(_model_path_abs)}\n"
+            if os.path.exists(_model_path_abs):
+                error_details += f"File size: {os.path.getsize(_model_path_abs) / (1024*1024):.2f} MB\n"
         raise Exception(error_details)
 
 
@@ -808,9 +876,41 @@ def main():
             help="Path to the trained model checkpoint"
         )
         
+        # Try to resolve the path and show status
+        resolved_path = resolve_model_path(model_path_input) if model_path_input else None
+        if resolved_path:
+            st.success(f"✓ Model found: {resolved_path}")
+        elif model_path_input:
+            st.warning(f"⚠ Model not found at: {model_path_input}")
+            st.info(f"Current directory: {os.getcwd()}\nApp directory: {os.path.dirname(os.path.abspath(__file__))}")
+        
+        # Auto-load model if it exists and hasn't been loaded yet (only once)
+        if (resolved_path and 
+            not st.session_state.model_loaded and 
+            not st.session_state.auto_load_attempted and
+            (st.session_state.model_path is None or st.session_state.model_path != resolved_path)):
+            st.session_state.auto_load_attempted = True
+            try:
+                with st.spinner("Auto-loading model..."):
+                    # Clear cache to ensure fresh load
+                    load_model_robust.clear()
+                    # Pass resolved absolute path to cached function
+                    model, device = load_model_robust(resolved_path, model_name)
+                    st.session_state.model = model
+                    st.session_state.device = device
+                    st.session_state.model_loaded = True
+                    st.session_state.model_path = resolved_path
+                st.success("✓ Model auto-loaded successfully!")
+                device_name = "GPU" if device.type == 'cuda' else "CPU"
+                st.info(f"Running on: {device_name}")
+            except Exception as e:
+                # Show a warning but don't block the app
+                st.warning(f"Auto-load failed. Please load manually. Error: {str(e)}")
+                st.session_state.model_loaded = False
+        
         # Inspect checkpoint button
         if st.button("Inspect Checkpoint", use_container_width=True):
-            if model_path_input and os.path.exists(model_path_input):
+            if resolved_path:
                 try:
                     info = inspect_checkpoint(model_path_input)
                     st.json(info)
@@ -821,18 +921,18 @@ def main():
         
         # Load model button
         if st.button("Load Model", type="primary", use_container_width=True):
-            if os.path.exists(model_path_input):
+            if resolved_path:
                 try:
                     with st.spinner("Loading model..."):
-                        # Clear any cached model first
-                        if 'model' in st.session_state and st.session_state.model is not None:
-                            del st.session_state.model
+                        # Clear cache to force reload
+                        load_model_robust.clear()
                         
-                        model, device = load_model_robust(model_path_input, model_name)
+                        # Pass resolved absolute path to cached function
+                        model, device = load_model_robust(resolved_path, model_name)
                         st.session_state.model = model
                         st.session_state.device = device
                         st.session_state.model_loaded = True
-                        st.session_state.model_path = model_path_input
+                        st.session_state.model_path = resolved_path
                     st.success(f"Model loaded successfully!")
                     device_name = "GPU" if device.type == 'cuda' else "CPU"
                     st.info(f"Running on: {device_name}")
@@ -844,9 +944,11 @@ def main():
                     st.session_state.model_loaded = False
                     # Clear failed model state
                     st.session_state.model = None
+                    st.session_state.device = None
             else:
                 st.error(f"Model file not found: {model_path_input}")
-                st.info(f"Make sure the path is correct. Current working directory: {os.getcwd()}")
+                st.info(f"Make sure the path is correct.\n\nCurrent working directory: {os.getcwd()}\nApp directory: {os.path.dirname(os.path.abspath(__file__))}")
+                st.info("💡 Tip: In Streamlit Cloud, make sure the model file is committed to your repository or uploaded to the deployment.")
                 st.session_state.model_loaded = False
         
         # Model status
