@@ -2,6 +2,24 @@
 # Enable file watcher for auto-reload
 fileWatcherType = "auto"
 
+# Increase upload size limit for large model files (200MB default, increase to 1GB)
+maxUploadSize = 1024
+
+# Increase message size limit for large data transfers (200MB default, increase to 1GB)
+maxMessageSize = 1024
+
+# Enable CORS if needed for deployment
+enableCORS = false
+
+# Enable XSRF protection for security
+enableXsrfProtection = true
+
+# Port configuration (Streamlit Cloud handles this automatically)
+# port = 8501
+
+# Address binding (Streamlit Cloud handles this automatically)
+# address = "localhost"
+
 [theme]
 # Optional: Customize theme
 primaryColor = "#1f77b4"
@@ -9,4 +27,14 @@ backgroundColor = "#ffffff"
 secondaryBackgroundColor = "#f0f2f6"
 textColor = "#262730"
 font = "sans serif"
+
+[browser]
+# Gather usage stats (optional)
+gatherUsageStats = false
+
+# Server address (Streamlit Cloud handles this automatically)
+# serverAddress = "localhost"
+
+# Server port (Streamlit Cloud handles this automatically)
+# serverPort = 8501
 
