@@ -1144,38 +1144,49 @@ st.markdown("""
     </style>
     
     <script>
-    // Drag and drop functionality
-    document.addEventListener('DOMContentLoaded', function() {
-        const sampleCards = document.querySelectorAll('.sample-image-card');
-        const fileUploader = document.querySelector('[data-testid="stFileUploader"]');
-        
-        sampleCards.forEach(card => {
-            card.addEventListener('dragstart', function(e) {
-                e.dataTransfer.effectAllowed = 'copy';
-                e.dataTransfer.setData('text/plain', this.dataset.imagePath);
-                this.classList.add('dragging');
-            });
-            
-            card.addEventListener('dragend', function(e) {
-                this.classList.remove('dragging');
-            });
+    // Drag and drop functionality - wrapped in try/catch for safety
+    try {
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                const sampleCards = document.querySelectorAll('.sample-image-card');
+                const fileUploader = document.querySelector('[data-testid="stFileUploader"]');
+                
+                if (sampleCards && sampleCards.length > 0) {
+                    sampleCards.forEach(card => {
+                        try {
+                            card.addEventListener('dragstart', function(e) {
+                                e.dataTransfer.effectAllowed = 'copy';
+                                e.dataTransfer.setData('text/plain', this.dataset.imagePath);
+                                this.classList.add('dragging');
+                            });
+                            
+                            card.addEventListener('dragend', function(e) {
+                                this.classList.remove('dragging');
+                            });
+                            
+                            card.addEventListener('mouseenter', function() {
+                                this.style.cursor = 'grab';
+                            });
+                            
+                            card.addEventListener('mousedown', function() {
+                                this.style.cursor = 'grabbing';
+                            });
+                            
+                            card.addEventListener('mouseup', function() {
+                                this.style.cursor = 'grab';
+                            });
+                        } catch (e) {
+                            // Ignore errors for individual cards
+                        }
+                    });
+                }
+            } catch (e) {
+                // Ignore JavaScript errors - not critical for app functionality
+            }
         });
-        
-        // Make cards more interactive
-        sampleCards.forEach(card => {
-            card.addEventListener('mouseenter', function() {
-                this.style.cursor = 'grab';
-            });
-            
-            card.addEventListener('mousedown', function() {
-                this.style.cursor = 'grabbing';
-            });
-            
-            card.addEventListener('mouseup', function() {
-                this.style.cursor = 'grab';
-            });
-        });
-    });
+    } catch (e) {
+        // Ignore JavaScript errors - not critical for app functionality
+    }
     </script>
 """, unsafe_allow_html=True)
 
