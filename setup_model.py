@@ -49,41 +49,42 @@ def setup_model(model_url=None):
         model_url: Optional URL to download model from. If not provided, will check:
             - Streamlit secrets (MODEL_URL)
             - Environment variable (MODEL_URL)
+    
+    Returns:
+        bool: True if model exists or was successfully downloaded, False otherwise
     """
-    # Check if model already exists
-    if check_model_exists(MODEL_PATH):
-        print(f"Model file already exists at {MODEL_PATH}")
-        file_size = os.path.getsize(MODEL_PATH) / (1024 * 1024)
-        print(f"Model size: {file_size:.2f} MB")
-        return True
-    
-    # Get model URL from parameter, Streamlit secrets, or environment variable
-    url = model_url
-    if not url:
-        try:
-            import streamlit as st
-            # Check if we're in a Streamlit context and secrets are available
-            if hasattr(st, 'secrets') and 'MODEL_URL' in st.secrets:
-                url = st.secrets['MODEL_URL']
-        except:
-            pass
-        
-        # Fall back to environment variable
-        if not url:
-            url = os.getenv("MODEL_URL", "")
-    
-    # Try to download from URL if provided
-    if url:
-        print(f"Model file not found. Attempting to download from {url}...")
-        if download_model(url, MODEL_PATH):
+    try:
+        # Check if model already exists
+        if check_model_exists(MODEL_PATH):
+            file_size = os.path.getsize(MODEL_PATH) / (1024 * 1024)
             return True
+        
+        # Get model URL from parameter, Streamlit secrets, or environment variable
+        url = model_url
+        if not url:
+            try:
+                import streamlit as st
+                # Check if we're in a Streamlit context and secrets are available
+                if hasattr(st, 'secrets') and st.secrets and 'MODEL_URL' in st.secrets:
+                    url = st.secrets.get('MODEL_URL', '')
+            except (ImportError, AttributeError, TypeError):
+                # Not in Streamlit context or secrets not available
+                pass
+            
+            # Fall back to environment variable
+            if not url:
+                url = os.getenv("MODEL_URL", "")
+        
+        # Try to download from URL if provided
+        if url:
+            if download_model(url, MODEL_PATH):
+                return True
+            else:
+                return False
         else:
-            print("Failed to download model from URL.")
             return False
-    else:
-        print(f"Model file not found at {MODEL_PATH}")
-        print("To download model automatically, set MODEL_URL in Streamlit secrets or as environment variable.")
-        print("Alternatively, ensure the model file is in the repository or use Git LFS.")
+    except Exception as e:
+        # Silently fail - don't break the app if setup fails
         return False
 
 

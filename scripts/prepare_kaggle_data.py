@@ -143,8 +143,8 @@ def prepare_data(kaggle_path, output_dir='data', train_ratio=0.7, val_ratio=0.15
 def main():
     parser = argparse.ArgumentParser(description='Prepare Kaggle brain tumor dataset')
     parser.add_argument('--kaggle_path', type=str, 
-                        default='/Users/jasoncharwin/.cache/kagglehub/datasets/masoudnickparvar/brain-tumor-mri-dataset/versions/1',
-                        help='Path to downloaded Kaggle dataset')
+                        default=None,
+                        help='Path to downloaded Kaggle dataset (required if not using default cache location)')
     parser.add_argument('--output_dir', type=str, default='data',
                         help='Output directory for prepared data')
     parser.add_argument('--train_ratio', type=float, default=0.7,
@@ -157,6 +157,21 @@ def main():
                         help='Random seed for reproducibility')
     
     args = parser.parse_args()
+    
+    # If kaggle_path not provided, try to find default cache location
+    if args.kaggle_path is None:
+        import os
+        home_dir = os.path.expanduser("~")
+        default_path = os.path.join(home_dir, '.cache', 'kagglehub', 'datasets', 
+                                   'masoudnickparvar', 'brain-tumor-mri-dataset', 'versions', '1')
+        if os.path.exists(default_path):
+            args.kaggle_path = default_path
+            print(f"Using default cache location: {args.kaggle_path}")
+        else:
+            raise ValueError(
+                "kaggle_path not provided and default cache location not found.\n"
+                "Please provide --kaggle_path argument or download the dataset first."
+            )
     
     # Validate ratios
     if abs(args.train_ratio + args.val_ratio + args.test_ratio - 1.0) > 1e-6:
