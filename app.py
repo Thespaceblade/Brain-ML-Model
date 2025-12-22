@@ -14,6 +14,7 @@ from albumentations.pytorch import ToTensorV2
 import plotly.graph_objects as go
 import plotly.express as px
 from io import BytesIO
+import base64
 
 # Add src to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -71,17 +72,225 @@ st.markdown("""
         to { opacity: 1; transform: translateY(0); }
     }
     
-    /* Main header with animation */
+    /* Main header with enhanced animation */
     .main-header {
-        font-size: 3rem;
-        font-weight: bold;
-        background: linear-gradient(135deg, #1f77b4 0%, #42a5f5 100%);
+        font-size: 4rem;
+        font-weight: 900;
+        background: linear-gradient(135deg, #1f77b4 0%, #42a5f5 50%, #7c3aed 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
         text-align: center;
-        margin-bottom: 2rem;
+        margin-bottom: 1rem;
         animation: fadeIn 1s ease-in;
+        text-shadow: 0 0 30px rgba(31, 119, 180, 0.3);
+        letter-spacing: -1px;
+        position: relative;
+    }
+    
+    /* Subtitle styling */
+    .main-subtitle {
+        text-align: center;
+        font-size: 1.2rem;
+        color: #666;
+        margin-bottom: 2rem;
+        font-weight: 500;
+        animation: fadeInUp 0.8s ease-in 0.3s both;
+    }
+    
+    /* Draggable sample images container - compact version */
+    .sample-images-container {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 15px;
+        padding: 1rem;
+        margin: 1rem 0;
+        border: 2px dashed #1f77b4;
+        position: relative;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    }
+    
+    .sample-images-title {
+        text-align: center;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1f77b4;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+    
+    .sample-images-instruction {
+        text-align: center;
+        color: #666;
+        font-size: 0.85rem;
+        margin-bottom: 0.75rem;
+        font-style: italic;
+    }
+    
+    /* Drop zone highlight */
+    .drop-zone-active {
+        background: linear-gradient(135deg, rgba(31, 119, 180, 0.25) 0%, rgba(66, 165, 245, 0.25) 100%) !important;
+        border: 4px solid #1f77b4 !important;
+        border-style: dashed !important;
+        transform: scale(1.03) !important;
+        box-shadow: 0 12px 32px rgba(31, 119, 180, 0.4) !important;
+        animation: pulse 1s ease-in-out infinite !important;
+    }
+    
+    #drop-zone {
+        position: relative;
+    }
+    
+    #drop-zone::after {
+        content: '↓ Drop Here ↓';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1f77b4;
+        opacity: 0;
+        transition: opacity 0.3s;
+        pointer-events: none;
+        z-index: 10;
+    }
+    
+    #drop-zone.drop-zone-active::after {
+        opacity: 1;
+    }
+    
+    .sample-images-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .sample-image-card {
+        background: white;
+        border-radius: 10px;
+        padding: 0.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: grab;
+        position: relative;
+        overflow: hidden;
+        border: 2px solid transparent;
+    }
+    
+    .sample-image-card::before {
+        content: '';
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        font-size: 1.2rem;
+        opacity: 0;
+        transition: opacity 0.3s;
+        z-index: 2;
+    }
+    
+    .sample-image-card:hover::before {
+        opacity: 1;
+    }
+    
+    .sample-image-card:hover {
+        transform: translateY(-8px) scale(1.05);
+        box-shadow: 0 8px 24px rgba(31, 119, 180, 0.3);
+        border-color: #1f77b4;
+    }
+    
+    .sample-image-card:active {
+        cursor: grabbing;
+        transform: translateY(-4px) scale(1.02);
+    }
+    
+    .sample-image-wrapper {
+        position: relative;
+        width: 100%;
+        padding-top: 100%;
+        overflow: hidden;
+        border-radius: 10px;
+        background: #f0f0f0;
+    }
+    
+    .sample-image-wrapper img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.3s;
+    }
+    
+    .sample-image-card:hover .sample-image-wrapper img {
+        transform: scale(1.1);
+    }
+    
+    .sample-image-label {
+        margin-top: 0.75rem;
+        text-align: center;
+        font-weight: 700;
+        font-size: 0.9rem;
+        padding: 0.5rem;
+        border-radius: 8px;
+    }
+    
+    .sample-image-label.bleeding {
+        background: linear-gradient(135deg, #ffcdd2 0%, #ffb3ba 100%);
+        color: #b71c1c;
+        border: 2px solid #d32f2f;
+    }
+    
+    .sample-image-label.no-bleeding {
+        background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%);
+        color: #1b5e20;
+        border: 2px solid #388e3c;
+    }
+    
+    /* Arrow indicator */
+    .arrow-indicator {
+        text-align: center;
+        font-size: 3rem;
+        color: #1f77b4;
+        margin: 1rem 0;
+        animation: bounce 2s ease-in-out infinite;
+    }
+    
+    @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+    
+    /* Drop zone styling */
+    .drop-zone {
+        border: 3px dashed #1f77b4;
+        border-radius: 15px;
+        padding: 2rem;
+        text-align: center;
+        background: rgba(31, 119, 180, 0.05);
+        transition: all 0.3s;
+        min-height: 200px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+    }
+    
+    .drop-zone.drag-over {
+        background: rgba(31, 119, 180, 0.15);
+        border-color: #42a5f5;
+        transform: scale(1.02);
+    }
+    
+    .drop-zone-text {
+        font-size: 1.2rem;
+        color: #1f77b4;
+        font-weight: 600;
+        margin-top: 1rem;
     }
     
     /* Prediction boxes with hover effects */
@@ -577,7 +786,365 @@ st.markdown("""
     .stJson:hover {
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
+    
+    /* Drag and drop visual feedback */
+    .dragging {
+        opacity: 0.5;
+        transform: scale(0.95);
+    }
+    
+    /* Instruction overlay */
+    .instruction-overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(31, 119, 180, 0.95);
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 15px;
+        font-weight: 600;
+        font-size: 1.1rem;
+        z-index: 10;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+    
+    .sample-image-card:hover .instruction-overlay {
+        opacity: 1;
+    }
+    
+    /* Navigation Bar - Enhanced */
+    .nav-bar-container {
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        background: white;
+        padding: 1rem 0;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        border-bottom: 3px solid #1f77b4;
+    }
+    
+    .nav-bar {
+        background: linear-gradient(135deg, #1f77b4 0%, #42a5f5 100%);
+        padding: 1rem 2rem;
+        border-radius: 15px;
+        margin: 0 auto;
+        max-width: 1200px;
+        box-shadow: 0 4px 20px rgba(31, 119, 180, 0.4);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    
+    .nav-button {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        padding: 0.75rem 1.5rem;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-decoration: none;
+        display: inline-block;
+        min-width: 140px;
+        text-align: center;
+    }
+    
+    .nav-button:hover {
+        background: rgba(255, 255, 255, 0.35);
+        border-color: rgba(255, 255, 255, 0.6);
+        transform: translateY(-3px) scale(1.05);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    .nav-button.active {
+        background: white;
+        color: #1f77b4;
+        border-color: white;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        transform: scale(1.05);
+    }
+    
+    .nav-button.active:hover {
+        transform: translateY(-3px) scale(1.08);
+    }
+    
+    /* Research page specific styles */
+    .research-section {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        border: 2px solid rgba(31, 119, 180, 0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .research-section:hover {
+        box-shadow: 0 6px 20px rgba(31, 119, 180, 0.15);
+        border-color: rgba(31, 119, 180, 0.2);
+    }
+    
+    .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin: 1.5rem 0;
+    }
+    
+    .metric-card-research {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 2rem 1.5rem;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 2px solid transparent;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .metric-card-research::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(31, 119, 180, 0.1), transparent);
+        transition: left 0.5s;
+    }
+    
+    .metric-card-research:hover::before {
+        left: 100%;
+    }
+    
+    .metric-card-research:hover {
+        transform: translateY(-8px) scale(1.02);
+        box-shadow: 0 12px 24px rgba(31, 119, 180, 0.25);
+        border-color: #1f77b4;
+    }
+    
+    .metric-value {
+        font-size: 3rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #1f77b4 0%, #42a5f5 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin: 0.5rem 0;
+        line-height: 1.2;
+    }
+    
+    .metric-label {
+        font-size: 1rem;
+        color: #666;
+        font-weight: 600;
+        margin-top: 0.5rem;
+    }
+    
+    .notebook-viewer {
+        background: white;
+        border-radius: 15px;
+        padding: 2rem;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        max-height: 900px;
+        overflow-y: auto;
+        border: 2px solid rgba(31, 119, 180, 0.1);
+    }
+    
+    .notebook-viewer::-webkit-scrollbar {
+        width: 10px;
+    }
+    
+    .notebook-viewer::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    
+    .notebook-viewer::-webkit-scrollbar-thumb {
+        background: #1f77b4;
+        border-radius: 10px;
+    }
+    
+    .notebook-viewer::-webkit-scrollbar-thumb:hover {
+        background: #1565c0;
+    }
+    
+    .visualization-gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 2rem;
+        margin: 2rem 0;
+    }
+    
+    .viz-card {
+        background: white;
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 2px solid transparent;
+        position: relative;
+    }
+    
+    .viz-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(31, 119, 180, 0.05) 0%, rgba(66, 165, 245, 0.05) 100%);
+        opacity: 0;
+        transition: opacity 0.3s;
+        z-index: 1;
+    }
+    
+    .viz-card:hover::before {
+        opacity: 1;
+    }
+    
+    .viz-card:hover {
+        transform: translateY(-10px) scale(1.02);
+        box-shadow: 0 12px 30px rgba(31, 119, 180, 0.3);
+        border-color: #1f77b4;
+    }
+    
+    .viz-card img {
+        width: 100%;
+        height: auto;
+        display: block;
+        transition: transform 0.3s;
+    }
+    
+    .viz-card:hover img {
+        transform: scale(1.05);
+    }
+    
+    .viz-card-title {
+        padding: 1.5rem;
+        font-weight: 700;
+        color: #1f77b4;
+        text-align: center;
+        font-size: 1.1rem;
+        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+        border-top: 2px solid rgba(31, 119, 180, 0.1);
+        position: relative;
+        z-index: 2;
+    }
+    
+    .experiment-hero {
+        background: linear-gradient(135deg, #1f77b4 0%, #42a5f5 50%, #7c3aed 100%);
+        padding: 3rem 2rem;
+        border-radius: 20px;
+        margin: 2rem 0;
+        color: white;
+        text-align: center;
+        box-shadow: 0 8px 30px rgba(31, 119, 180, 0.4);
+    }
+    
+    .experiment-hero h1 {
+        color: white;
+        font-size: 3rem;
+        font-weight: 900;
+        margin-bottom: 1rem;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    
+    .experiment-hero p {
+        font-size: 1.3rem;
+        opacity: 0.95;
+        margin: 0.5rem 0;
+    }
+    
+    .config-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin: 1.5rem 0;
+    }
+    
+    .config-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        border-left: 4px solid #1f77b4;
+        transition: all 0.3s ease;
+    }
+    
+    .config-card:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 15px rgba(31, 119, 180, 0.2);
+    }
+    
+    .config-card h4 {
+        color: #1f77b4;
+        margin-bottom: 1rem;
+        font-size: 1.2rem;
+    }
+    
+    .download-btn {
+        background: linear-gradient(135deg, #1f77b4 0%, #42a5f5 100%);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        text-decoration: none;
+        display: inline-block;
+        margin-top: 0.5rem;
+        transition: all 0.3s ease;
+        font-weight: 600;
+    }
+    
+    .download-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(31, 119, 180, 0.4);
+    }
     </style>
+    
+    <script>
+    // Drag and drop functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const sampleCards = document.querySelectorAll('.sample-image-card');
+        const fileUploader = document.querySelector('[data-testid="stFileUploader"]');
+        
+        sampleCards.forEach(card => {
+            card.addEventListener('dragstart', function(e) {
+                e.dataTransfer.effectAllowed = 'copy';
+                e.dataTransfer.setData('text/plain', this.dataset.imagePath);
+                this.classList.add('dragging');
+            });
+            
+            card.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+            });
+        });
+        
+        // Make cards more interactive
+        sampleCards.forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.cursor = 'grab';
+            });
+            
+            card.addEventListener('mousedown', function() {
+                this.style.cursor = 'grabbing';
+            });
+            
+            card.addEventListener('mouseup', function() {
+                this.style.cursor = 'grab';
+            });
+        });
+    });
+    </script>
 """, unsafe_allow_html=True)
 
 # Initialize session state
@@ -591,6 +1158,8 @@ if 'model_path' not in st.session_state:
     st.session_state.model_path = None
 if 'auto_load_attempted' not in st.session_state:
     st.session_state.auto_load_attempted = False
+if 'selected_sample_image' not in st.session_state:
+    st.session_state.selected_sample_image = None
 
 
 def resolve_model_path(model_path):
@@ -810,6 +1379,45 @@ def get_test_images():
     return test_images
 
 
+def get_sample_images(num_samples=4):
+    """Get a small sample of test images for the draggable preview section"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    bleeding_dir = os.path.join(base_dir, "data", "test", "bleeding")
+    no_bleeding_dir = os.path.join(base_dir, "data", "test", "no_bleeding")
+    
+    samples = []
+    
+    # Get bleeding samples
+    if os.path.exists(bleeding_dir):
+        bleeding_files = sorted([f for f in os.listdir(bleeding_dir) 
+                                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
+        for i, filename in enumerate(bleeding_files[:num_samples]):
+            if i < num_samples:
+                image_path = os.path.join(bleeding_dir, filename)
+                if os.path.exists(image_path):
+                    samples.append({
+                        'filename': filename,
+                        'category': 'Bleeding',
+                        'path': image_path
+                    })
+    
+    # Get no bleeding samples
+    if os.path.exists(no_bleeding_dir):
+        no_bleeding_files = sorted([f for f in os.listdir(no_bleeding_dir) 
+                                    if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
+        for i, filename in enumerate(no_bleeding_files[:num_samples]):
+            if i < num_samples:
+                image_path = os.path.join(no_bleeding_dir, filename)
+                if os.path.exists(image_path):
+                    samples.append({
+                        'filename': filename,
+                        'category': 'No Bleeding',
+                        'path': image_path
+                    })
+    
+    return samples
+
+
 def load_test_image(category, filename):
     """Load a test image from the data/test directory"""
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -822,6 +1430,75 @@ def load_test_image(category, filename):
         return Image.open(image_path)
     else:
         raise FileNotFoundError(f"Test image not found: {image_path}")
+
+
+def image_to_base64(image):
+    """Convert PIL Image to base64 string"""
+    buffered = BytesIO()
+    image.save(buffered, format="JPEG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    return img_str
+
+
+def render_navigation_bar():
+    """Render the enhanced navigation bar with page selection"""
+    pages = {
+        "Home": "🏠 Home",
+        "Batch": "📦 Batch Processing",
+        "Research": "🔬 Research & Experiments",
+        "About": "ℹ️ About"
+    }
+    
+    # Initialize page if not set
+    if 'current_page' not in st.session_state:
+        st.session_state.current_page = "Home"
+    
+    # Handle page navigation via query params
+    query_params = st.query_params
+    if 'page' in query_params:
+        page = query_params['page']
+        if page in pages:
+            st.session_state.current_page = page
+            # Clear query params after setting state
+            st.query_params.clear()
+            st.rerun()
+    
+    current_page = st.session_state.current_page
+    
+    # Create enhanced navigation bar
+    st.markdown('<div class="nav-bar-container">', unsafe_allow_html=True)
+    st.markdown('<div class="nav-bar">', unsafe_allow_html=True)
+    
+    nav_cols = st.columns(len(pages))
+    for idx, (page_key, page_label) in enumerate(pages.items()):
+        with nav_cols[idx]:
+            button_type = "primary" if current_page == page_key else "secondary"
+            if st.button(page_label, key=f"nav_{page_key}", use_container_width=True, type=button_type):
+                st.session_state.current_page = page_key
+                st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def notebook_to_html(notebook_path):
+    """Convert Jupyter notebook to HTML for embedding"""
+    try:
+        from nbconvert import HTMLExporter
+        import nbformat
+        
+        with open(notebook_path, 'r', encoding='utf-8') as f:
+            notebook = nbformat.read(f, as_version=4)
+        
+        html_exporter = HTMLExporter()
+        html_exporter.template_name = 'classic'
+        (body, resources) = html_exporter.from_notebook_node(notebook)
+        
+        return body
+    except ImportError:
+        return None  # nbconvert not installed
+    except Exception as e:
+        return None  # Error reading notebook
 
 
 def create_probability_chart(probabilities):
@@ -886,6 +1563,775 @@ def create_probability_chart(probabilities):
     return fig
 
 
+def page_home(img_size):
+    """Home page - Single Image Prediction"""
+    st.header("Single Image Prediction")
+    
+    if not st.session_state.model_loaded:
+        st.warning("Please load a model in the sidebar before making predictions.")
+    else:
+        # Image source selection - moved to top
+        image_source = st.radio(
+            "Choose image source:",
+            ["Upload Image", "Use Test Image"],
+            horizontal=True,
+            help="Upload your own image or select from available test images"
+        )
+        
+        image = None
+        image_source_name = None
+        
+        # Check if a sample image was selected
+        if st.session_state.selected_sample_image:
+            try:
+                image = Image.open(st.session_state.selected_sample_image['path'])
+                image_source_name = f"{st.session_state.selected_sample_image['category']} - {st.session_state.selected_sample_image['filename']}"
+                # Clear the selection after using it
+                st.session_state.selected_sample_image = None
+            except Exception as e:
+                st.error(f"Error loading selected sample image: {str(e)}")
+        
+        if image_source == "Upload Image":
+            # Enhanced drop zone with clear visual feedback
+            st.markdown("""
+            <div id="drop-zone" style="
+                background: linear-gradient(135deg, rgba(31, 119, 180, 0.1) 0%, rgba(66, 165, 245, 0.1) 100%);
+                border: 3px dashed #1f77b4;
+                border-radius: 15px;
+                padding: 2rem;
+                text-align: center;
+                margin-bottom: 1rem;
+                transition: all 0.3s ease;
+            ">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem; color: #1f77b4;">UPLOAD</div>
+                <p style="font-size: 1.3rem; color: #1f77b4; font-weight: 700; margin: 0.5rem 0;">
+                    Drag & Drop Your Image Here
+                </p>
+                <p style="font-size: 1rem; color: #1f77b4; font-weight: 600; margin: 0.5rem 0;">
+                    or click to browse
+                </p>
+                <p style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">
+                    Supported: PNG, JPG, JPEG, BMP, TIFF
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            uploaded_file = st.file_uploader(
+                "Upload a brain scan image",
+                type=['png', 'jpg', 'jpeg', 'bmp', 'tiff'],
+                help="Upload a medical image (CT scan or MRI) for classification",
+                label_visibility="collapsed"
+            )
+            
+            if uploaded_file is not None:
+                image = Image.open(uploaded_file)
+                image_source_name = uploaded_file.name
+        
+        # Sample images section
+        if not image:
+            st.markdown("---")
+            st.markdown("""
+            <div class="sample-images-container">
+                <div class="sample-images-title">
+                    Or Try Sample Images
+                </div>
+                <div class="sample-images-instruction">
+                    Click any sample below to test instantly
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            sample_images = get_sample_images(num_samples=4)
+            
+            if len(sample_images) > 0:
+                num_cols = min(4, len(sample_images))
+                cols = st.columns(num_cols)
+                
+                for idx, sample in enumerate(sample_images):
+                    with cols[idx % num_cols]:
+                        try:
+                            sample_img = Image.open(sample['path'])
+                            display_img = sample_img.copy()
+                            display_img.thumbnail((120, 120), Image.Resampling.LANCZOS)
+                            
+                            label_class = "bleeding" if sample['category'] == 'Bleeding' else "no-bleeding"
+                            label_color = "#b71c1c" if sample['category'] == 'Bleeding' else "#1b5e20"
+                            bg_color = "#ffcdd2" if sample['category'] == 'Bleeding' else "#c8e6c9"
+                            
+                            st.markdown(f"""
+                            <div style="
+                                text-align: center;
+                                font-weight: 700;
+                                font-size: 0.75rem;
+                                color: {label_color};
+                                margin-bottom: 0.25rem;
+                                padding: 0.25rem;
+                                background: {bg_color};
+                                border-radius: 5px;
+                                border: 1px solid {label_color};
+                            ">
+                                {sample['category']}
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            st.image(display_img, use_container_width=True)
+                            
+                            if st.button(f"Use", key=f"sample_{idx}", use_container_width=True):
+                                st.session_state.selected_sample_image = sample
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {str(e)}")
+        else:
+            # Test image selection
+            test_images = get_test_images()
+            
+            if len(test_images['Bleeding']) == 0 and len(test_images['No Bleeding']) == 0:
+                st.warning("No test images found in data/test directory.")
+            else:
+                available_categories = []
+                if len(test_images['Bleeding']) > 0:
+                    available_categories.append('Bleeding')
+                if len(test_images['No Bleeding']) > 0:
+                    available_categories.append('No Bleeding')
+                
+                if len(available_categories) > 0:
+                    selected_category = st.selectbox(
+                        "Select image category:",
+                        available_categories,
+                        help="Choose whether to test with bleeding or no bleeding images"
+                    )
+                    
+                    if selected_category:
+                        available_images = test_images[selected_category]
+                        
+                        if len(available_images) > 0:
+                            selected_image = st.selectbox(
+                                f"Select a {selected_category.lower()} test image:",
+                                available_images,
+                                help="Choose a test image to analyze"
+                            )
+                            
+                            if selected_image:
+                                try:
+                                    image = load_test_image(selected_category, selected_image)
+                                    image_source_name = f"{selected_category} - {selected_image}"
+                                except Exception as e:
+                                    st.error(f"Error loading test image: {str(e)}")
+        
+        # Display image and prediction interface
+        if image is not None:
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                st.subheader("Input Image")
+                caption = image_source_name if image_source_name else "Selected Image"
+                st.image(image, caption=caption, use_container_width=True)
+            
+            with col2:
+                st.subheader("Prediction Results")
+                
+                predict_clicked = st.button("Predict", type="primary", use_container_width=True, key="predict_button")
+                
+                if predict_clicked:
+                    with st.spinner("Analyzing image..."):
+                        image_tensor = preprocess_image(image, img_size)
+                        prediction, confidence, probabilities = predict_image(
+                            st.session_state.model,
+                            image_tensor,
+                            st.session_state.device
+                        )
+                        
+                        st.session_state.prediction = prediction
+                        st.session_state.confidence = confidence
+                        st.session_state.probabilities = probabilities
+                        st.session_state.image_source_name = image_source_name
+                
+                # Show results if available
+                if 'prediction' in st.session_state:
+                    prediction = st.session_state.prediction
+                    confidence = st.session_state.confidence
+                    probabilities = st.session_state.probabilities
+                    
+                    # Prediction box
+                    if prediction == "Bleeding":
+                        st.markdown(
+                            f'<div class="prediction-box bleeding">'
+                            f'<h2>{prediction} Detected</h2>'
+                            f'<h3>Confidence: {confidence*100:.2f}%</h3>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown(
+                            f'<div class="prediction-box no-bleeding">'
+                            f'<h2>{prediction}</h2>'
+                            f'<h3>Confidence: {confidence*100:.2f}%</h3>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
+                    
+                    # Probability chart
+                    fig = create_probability_chart(probabilities)
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Detailed metrics
+                    st.subheader("Detailed Probabilities")
+                    col3, col4 = st.columns(2)
+                    with col3:
+                        st.metric("No Bleeding", f"{probabilities[0]*100:.2f}%")
+                    with col4:
+                        st.metric("Bleeding", f"{probabilities[1]*100:.2f}%")
+
+
+def page_batch(img_size):
+    """Batch Processing page"""
+    st.header("Batch Processing")
+    
+    if not st.session_state.model_loaded:
+        st.warning("Please load a model in the sidebar before processing images.")
+    else:
+        st.markdown("Upload multiple images to process them all at once.")
+        
+        uploaded_files = st.file_uploader(
+            "Upload multiple images",
+            type=['png', 'jpg', 'jpeg', 'bmp', 'tiff'],
+            accept_multiple_files=True,
+            help="Select multiple brain scan images for batch processing"
+        )
+        
+        if uploaded_files:
+            if st.button("Process All Images", type="primary"):
+                results = []
+                progress_bar = st.progress(0)
+                
+                for idx, uploaded_file in enumerate(uploaded_files):
+                    try:
+                        image = Image.open(uploaded_file)
+                        image_tensor = preprocess_image(image, img_size)
+                        prediction, confidence, probabilities = predict_image(
+                            st.session_state.model,
+                            image_tensor,
+                            st.session_state.device
+                        )
+                        
+                        results.append({
+                            'Filename': uploaded_file.name,
+                            'Prediction': prediction,
+                            'Confidence': f"{confidence*100:.2f}%",
+                            'No Bleeding Prob': f"{probabilities[0]*100:.2f}%",
+                            'Bleeding Prob': f"{probabilities[1]*100:.2f}%"
+                        })
+                    except Exception as e:
+                        results.append({
+                            'Filename': uploaded_file.name,
+                            'Prediction': 'Error',
+                            'Confidence': str(e),
+                            'No Bleeding Prob': 'N/A',
+                            'Bleeding Prob': 'N/A'
+                        })
+                    
+                    progress_bar.progress((idx + 1) / len(uploaded_files))
+                
+                st.success(f"Processed {len(results)} images!")
+                
+                # Display results
+                import pandas as pd
+                df = pd.DataFrame(results)
+                st.dataframe(df, use_container_width=True)
+                
+                # Summary statistics
+                if len(results) > 0:
+                    st.subheader("Summary Statistics")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        bleeding_count = sum(1 for r in results if r['Prediction'] == 'Bleeding')
+                        st.metric("Bleeding Detected", bleeding_count)
+                    with col2:
+                        no_bleeding_count = sum(1 for r in results if r['Prediction'] == 'No Bleeding')
+                        st.metric("No Bleeding", no_bleeding_count)
+                    with col3:
+                        st.metric("Total Processed", len(results))
+                
+                # Download results
+                csv = df.to_csv(index=False)
+                st.download_button(
+                    label="Download Results as CSV",
+                    data=csv,
+                    file_name="batch_predictions.csv",
+                    mime="text/csv"
+                )
+
+
+def page_research():
+    """Research & Experiments page - Comprehensive experiment documentation"""
+    
+    # Hero Section
+    st.markdown("""
+    <div class="experiment-hero">
+        <h1>🔬 Complete Model Evaluation</h1>
+        <p>Comprehensive experimental evaluation of the Brain Bleeding Classification model</p>
+        <p style="font-size: 1rem; opacity: 0.9;">ResNet50 Transfer Learning | 99.57% Test Accuracy</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Create tabs for better organization
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📊 Overview & Results", 
+        "🏗️ Model Architecture", 
+        "⚙️ Training Configuration", 
+        "📈 Visualizations", 
+        "📓 Complete Notebook"
+    ])
+    
+    with tab1:
+        # Overview Section
+        st.markdown('<div class="research-section">', unsafe_allow_html=True)
+        st.subheader("📊 Experiment Overview")
+        st.markdown("""
+        This experiment presents a comprehensive evaluation of a deep learning model for binary classification 
+        of brain bleeding in medical CT/MRI images. The model uses ResNet50 with transfer learning, trained on 
+        a stratified dataset split with rigorous evaluation protocols.
+        """)
+        
+        # Key Highlights
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("""
+            <div class="config-card">
+                <h4>🎯 Objective</h4>
+                <p>Binary classification of brain bleeding from medical images using deep learning</p>
+            </div>
+            """, unsafe_allow_html=True)
+        with col2:
+            st.markdown("""
+            <div class="config-card">
+                <h4>📐 Methodology</h4>
+                <p>Transfer learning with ResNet50, fine-tuned on medical imaging dataset</p>
+            </div>
+            """, unsafe_allow_html=True)
+        with col3:
+            st.markdown("""
+            <div class="config-card">
+                <h4>✅ Results</h4>
+                <p>99.57% test accuracy with comprehensive evaluation metrics</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Performance Results Section
+        st.markdown('<div class="research-section">', unsafe_allow_html=True)
+        st.subheader("🏆 Performance Results")
+        
+        # Load results from CSV if available
+        results_csv_path = "research/visualizations/output/research_evaluation/results_summary.csv"
+        if os.path.exists(results_csv_path):
+            import pandas as pd
+            try:
+                df_results = pd.read_csv(results_csv_path)
+                st.markdown("### Results Summary Table")
+                st.dataframe(df_results, use_container_width=True, hide_index=True)
+            except:
+                pass
+        
+        # Metrics Grid
+        st.markdown("### Test Set Performance Metrics")
+        st.markdown('<div class="metric-grid">', unsafe_allow_html=True)
+        
+        test_metrics = {
+            "Test Accuracy": "99.57%",
+            "Precision": "99.55%",
+            "Recall (Sensitivity)": "99.85%",
+            "Specificity": "98.86%",
+            "F1-Score": "99.70%",
+            "AUC-ROC": "99.88%",
+            "AUC-PR": "99.96%",
+            "False Positive Rate": "1.14%"
+        }
+        
+        cols = st.columns(4)
+        for idx, (metric, value) in enumerate(test_metrics.items()):
+            with cols[idx % 4]:
+                st.markdown(f"""
+                <div class="metric-card-research">
+                    <div class="metric-value">{value}</div>
+                    <div class="metric-label">{metric}</div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Confusion Matrix
+        st.markdown("### Confusion Matrix (Test Set)")
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            st.markdown("""
+            **Test Set Confusion Matrix:**
+            
+            ```
+                        Predicted
+                      No Bleeding  Bleeding
+            Actual No Bleeding      261          3
+            Actual Bleeding           1        660
+            ```
+            
+            **Detailed Counts:**
+            - **True Negatives (TN):** 261
+            - **False Positives (FP):** 3
+            - **False Negatives (FN):** 1
+            - **True Positives (TP):** 660
+            
+            **Total Test Samples:** 925
+            """)
+        
+        with col2:
+            cm_path = "research/visualizations/output/research_evaluation/confusion_matrix_resnet50_test.png"
+            if os.path.exists(cm_path):
+                st.image(cm_path, use_container_width=True)
+            else:
+                st.info("Confusion matrix visualization not found")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with tab2:
+        # Model Architecture Section
+        st.markdown('<div class="research-section">', unsafe_allow_html=True)
+        st.subheader("🏗️ Model Architecture")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            ### Base Architecture: ResNet50
+            
+            **Transfer Learning Approach:**
+            - Pre-trained on ImageNet dataset
+            - All layers trainable (fine-tuning)
+            - Feature extraction backbone: ResNet50
+            - 2048-dimensional feature vector output
+            
+            **Why ResNet50?**
+            - Proven architecture for image classification
+            - Residual connections prevent degradation
+            - Pre-trained weights provide strong initialization
+            - Suitable for medical image analysis
+            """)
+            
+            st.markdown("""
+            ### Custom Classifier Head
+            
+            The final classification layers:
+            ```
+            Input: 2048 features (from ResNet50)
+            ↓
+            Dropout (0.5)
+            ↓
+            Linear: 2048 → 512
+            ↓
+            ReLU activation
+            ↓
+            Dropout (0.3)
+            ↓
+            Linear: 512 → 2 (binary classification)
+            ```
+            """)
+        
+        with col2:
+            st.markdown("""
+            ### Model Specifications
+            
+            **Architecture Details:**
+            - **Total Parameters:** 24,558,146
+            - **Trainable Parameters:** 24,558,146
+            - **Input Size:** 224 × 224 pixels (RGB)
+            - **Output Classes:** 2 (No Bleeding, Bleeding)
+            - **Normalization:** ImageNet statistics
+              - Mean: [0.485, 0.456, 0.406]
+              - Std: [0.229, 0.224, 0.225]
+            
+            **Model Components:**
+            - ResNet50 backbone (convolutional layers)
+            - Global Average Pooling
+            - Custom fully connected layers
+            - Dropout for regularization
+            """)
+            
+            st.markdown("""
+            ### Training Strategy
+            
+            **Fine-tuning Approach:**
+            - All layers updated during training
+            - Learning rate: 0.001 (initial)
+            - Adaptive learning rate scheduling
+            - Weight decay for regularization
+            """)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with tab3:
+        # Training Configuration Section
+        st.markdown('<div class="research-section">', unsafe_allow_html=True)
+        st.subheader("⚙️ Training Configuration")
+        
+        st.markdown('<div class="config-grid">', unsafe_allow_html=True)
+        
+        config_sections = [
+            {
+                "title": "Hyperparameters",
+                "content": """
+                - **Epochs:** 50 (maximum)
+                - **Learning Rate:** 0.001
+                - **Optimizer:** Adam
+                - **Weight Decay:** 1e-4
+                - **Loss Function:** CrossEntropyLoss
+                """
+            },
+            {
+                "title": "Training Strategy",
+                "content": """
+                - **Batch Size:** 32
+                - **Image Size:** 224×224
+                - **Data Augmentation:** Yes
+                - **Early Stopping:** Patience=10
+                - **LR Scheduler:** ReduceLROnPlateau
+                """
+            },
+            {
+                "title": "Data Split",
+                "content": """
+                - **Training:** 70% (4,314 images)
+                - **Validation:** 15% (925 images)
+                - **Test:** 15% (925 images)
+                - **Stratified by class**
+                """
+            },
+            {
+                "title": "Training Duration",
+                "content": """
+                - **Actual Epochs:** 48
+                - **Early Stopping:** Triggered
+                - **Best Val Accuracy:** 99.89%
+                - **Training Time:** ~12 hours (CPU)
+                """
+            }
+        ]
+        
+        cols = st.columns(2)
+        for idx, config in enumerate(config_sections):
+            with cols[idx % 2]:
+                st.markdown(f"""
+                <div class="config-card">
+                    <h4>{config['title']}</h4>
+                    {config['content']}
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Data Augmentation Details
+        st.markdown("### Data Augmentation")
+        st.markdown("""
+        The following augmentations were applied during training (with probabilities):
+        - **Horizontal Flip:** 50%
+        - **Random Rotation 90°:** 50%
+        - **Random Brightness/Contrast:** 50% (±20%)
+        - **Gaussian Noise:** 30% (std: 0.1-0.5)
+        - **Gaussian Blur:** 30% (kernel: 3)
+        
+        Validation and test sets used only resizing and normalization (no augmentation).
+        """)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with tab4:
+        # Visualizations Gallery
+        st.markdown('<div class="research-section">', unsafe_allow_html=True)
+        st.subheader("📈 Visualization Gallery")
+        st.markdown("All visualizations generated from the complete evaluation experiment.")
+        
+        viz_dir = "research/visualizations/output/research_evaluation"
+        if os.path.exists(viz_dir):
+            viz_files = {
+                "ROC Curve": {
+                    "file": "roc_curve_resnet50_test.png",
+                    "desc": "Receiver Operating Characteristic curve showing model's ability to distinguish between classes. AUC-ROC: 99.88%"
+                },
+                "PR Curve": {
+                    "file": "pr_curve_resnet50_test.png",
+                    "desc": "Precision-Recall curve demonstrating model performance across different thresholds. AUC-PR: 99.96%"
+                },
+                "Calibration Curve": {
+                    "file": "calibration_curve_resnet50_test.png",
+                    "desc": "Reliability diagram showing how well-calibrated the model's probability predictions are"
+                },
+                "Training Curves": {
+                    "file": "training_curves_resnet50_test.png",
+                    "desc": "Training and validation loss/accuracy over 48 epochs, showing convergence and early stopping"
+                },
+                "Confusion Matrix": {
+                    "file": "confusion_matrix_resnet50_test.png",
+                    "desc": "Raw confusion matrix showing true vs predicted classifications on test set"
+                },
+                "Normalized Confusion Matrix": {
+                    "file": "confusion_matrix_normalized_resnet50_test.png",
+                    "desc": "Normalized confusion matrix showing classification percentages"
+                }
+            }
+            
+            # Display in grid with expandable details
+            for idx, (viz_name, viz_info) in enumerate(viz_files.items()):
+                viz_path = os.path.join(viz_dir, viz_info["file"])
+                if os.path.exists(viz_path):
+                    with st.expander(f"📊 {viz_name}", expanded=(idx < 2)):
+                        st.markdown(f'<div class="viz-card">', unsafe_allow_html=True)
+                        st.image(viz_path, use_container_width=True)
+                        st.markdown(f'<div class="viz-card-title">{viz_name}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<p style="padding: 1rem; color: #666;">{viz_info["desc"]}</p>', unsafe_allow_html=True)
+                        
+                        # Download button
+                        with open(viz_path, "rb") as f:
+                            st.download_button(
+                                label=f"📥 Download {viz_name}",
+                                data=f.read(),
+                                file_name=viz_info["file"],
+                                mime="image/png",
+                                key=f"download_{idx}"
+                            )
+                        st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.info("Visualizations directory not found")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with tab5:
+        # Jupyter Notebook Viewer
+        st.markdown('<div class="research-section">', unsafe_allow_html=True)
+        st.subheader("📓 Complete Evaluation Notebook")
+        st.markdown("""
+        The complete evaluation notebook contains the full experimental pipeline including data splitting, 
+        model training, evaluation, and visualization generation. View it interactively below or download 
+        the notebook file.
+        """)
+        
+        notebook_path = "research/complete_evaluation.ipynb"
+        if os.path.exists(notebook_path):
+            # Try to convert and display notebook
+            notebook_html = notebook_to_html(notebook_path)
+            if notebook_html:
+                st.markdown("### Interactive Notebook Viewer")
+                st.markdown('<div class="notebook-viewer">', unsafe_allow_html=True)
+                st.markdown(notebook_html, unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.info("💡 To view the notebook interactively, install nbconvert: `pip install nbconvert`")
+                
+                # Show notebook summary
+                st.markdown("### Notebook Summary")
+                st.markdown("""
+                The complete evaluation notebook (`research/complete_evaluation.ipynb`) contains:
+                
+                **1. Data Preparation**
+                - Stratified train/val/test split (70/15/15)
+                - Data loading and preprocessing
+                - Image augmentation setup
+                
+                **2. Model Training**
+                - ResNet50 model initialization
+                - Training loop with early stopping
+                - Learning rate scheduling
+                - Model checkpointing
+                
+                **3. Evaluation**
+                - Validation set evaluation
+                - Test set evaluation (final)
+                - Comprehensive metrics calculation
+                - Confusion matrix generation
+                
+                **4. Visualization Generation**
+                - ROC and PR curves
+                - Calibration curves
+                - Training history plots
+                - Confusion matrices
+                
+                **5. Results Summary**
+                - Performance metrics table
+                - Model saving
+                - Results export to CSV
+                """)
+                
+                # Show notebook file info
+                with st.expander("📋 Notebook File Information", expanded=False):
+                    import json
+                    try:
+                        with open(notebook_path, 'r') as f:
+                            nb_data = json.load(f)
+                        st.json({
+                            "Total Cells": len(nb_data.get('cells', [])),
+                            "Notebook Format": nb_data.get('nbformat', 'Unknown'),
+                            "Notebook Format Minor": nb_data.get('nbformat_minor', 'Unknown'),
+                            "File Size": f"{os.path.getsize(notebook_path) / 1024:.2f} KB"
+                        })
+                    except Exception as e:
+                        st.info(f"Could not read notebook metadata: {str(e)}")
+                
+                # Download notebook button
+                with open(notebook_path, "rb") as f:
+                    st.download_button(
+                        label="📥 Download Complete Notebook (.ipynb)",
+                        data=f.read(),
+                        file_name="complete_evaluation.ipynb",
+                        mime="application/json",
+                        key="download_notebook"
+                    )
+        else:
+            st.warning(f"Notebook file not found at: {notebook_path}")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
+def page_about():
+    """About page"""
+    st.header("ℹ️ About This Application")
+    
+    st.markdown("""
+    ### Overview
+    
+    This application provides an interactive interface for brain bleeding classification using deep learning.
+    The model uses transfer learning with ResNet50 and EfficientNet architectures to classify brain scan images.
+    
+    ### Features
+    
+    - **Transfer Learning**: Pre-trained ImageNet weights for better performance
+    - **Multiple Architectures**: Support for ResNet50 and EfficientNet variants
+    - **Data Augmentation**: Albumentations for robust training
+    - **Interactive Web Interface**: Real-time predictions with confidence scores
+    - **Batch Processing**: Process multiple images at once
+    - **Comprehensive Metrics**: Detailed performance analysis
+    
+    ### Technical Details
+    
+    - **Framework**: PyTorch
+    - **Web Framework**: Streamlit
+    - **Model**: ResNet50 / EfficientNet
+    - **Input**: 224×224 RGB images
+    - **Output**: Binary classification (Bleeding / No Bleeding)
+    
+    ### Important Notes
+    
+    ⚠️ **This tool is for research and educational purposes only.**
+    
+    - It should **not be used as a substitute for professional medical diagnosis**
+    - Always consult with medical professionals for actual diagnosis
+    - Model predictions are based on training data and may not be 100% accurate
+    
+    ### Links
+    
+    - [GitHub Repository](https://github.com/Thespaceblade/Brain-ML-Model)
+    - [Portfolio](https://jasonindata.vercel.app)
+    """)
+
+
 def main():
     # Try to setup model file if it doesn't exist (for deployment)
     # This runs after Streamlit is initialized, so secrets are available
@@ -896,8 +2342,9 @@ def main():
         # Silently fail if setup_model doesn't work - not critical
         pass
     
-    # Header
-    st.markdown('<h1 class="main-header">🧠 Brain Bleeding Classifier</h1>', unsafe_allow_html=True)
+    # Enhanced Header
+    st.markdown('<h1 class="main-header">Brain Bleeding Classifier</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">ResNet50 & EfficientNet CNN Models | Transfer Learning Classification</p>', unsafe_allow_html=True)
     
     # Links subheadings
     col_links1, col_links2 = st.columns(2)
@@ -908,7 +2355,13 @@ def main():
     
     st.markdown("---")
     
-    # Instructions Section
+    # Navigation Bar
+    render_navigation_bar()
+    
+    st.markdown("---")
+    
+    # Instructions Section (only on Home page)
+    if st.session_state.get('current_page', 'Home') == 'Home':
     with st.expander("How to Use This Application", expanded=False):
         st.markdown("""
         ### Quick Start Guide
@@ -1025,6 +2478,7 @@ def main():
         
         # Model path input
         st.subheader("Load Model")
+        
         model_path_input = st.text_input(
             "Model Path",
             value="models/best_model.pth",
@@ -1105,7 +2559,7 @@ def main():
                 st.info(f"**Current directory**: {os.getcwd()}\n**App directory**: {os.path.dirname(os.path.abspath(__file__))}")
                 
                 # Show deployment instructions
-                with st.expander("📋 How to fix this in Streamlit Cloud", expanded=True):
+                with st.expander("How to fix this in Streamlit Cloud", expanded=True):
                     st.markdown("""
                     ### Option 1: Use Git LFS (Recommended for large models)
                     1. Install Git LFS: `git lfs install`
@@ -1173,311 +2627,39 @@ def main():
             "Image Size",
             min_value=128,
             max_value=512,
-            value=224,
+            value=st.session_state.get('img_size', 224),
             step=32,
             help="Input image size for the model"
         )
+        st.session_state.img_size = img_size
         
         # Clear cache button
         if st.button("Clear Cache", use_container_width=True):
             st.cache_resource.clear()
             st.rerun()
     
-    # Main content area
-    tab1, tab2, tab3 = st.tabs(["Single Image", "Batch Processing", "About"])
+    # Main content area - Route to appropriate page
+    current_page = st.session_state.get('current_page', 'Home')
     
-    # Tab 1: Single Image Prediction
-    with tab1:
-        st.header("Single Image Prediction")
-        
-        if not st.session_state.model_loaded:
-            st.warning("Please load a model in the sidebar before making predictions.")
+    # Get image size from sidebar (will be set in sidebar section)
+    img_size = st.session_state.get('img_size', 224)
+    
+    # Route to page
+    if current_page == 'Home':
+        page_home(img_size)
+    elif current_page == 'Batch':
+        page_batch(img_size)
+    elif current_page == 'Research':
+        page_research()
+    elif current_page == 'About':
+        page_about()
         else:
-            # Image source selection
-            image_source = st.radio(
-                "Choose image source:",
-                ["Upload Image", "Use Test Image"],
-                horizontal=True,
-                help="Upload your own image or select from available test images"
-            )
-            
-            image = None
-            image_source_name = None
-            
-            if image_source == "Upload Image":
-                # Image upload
-                uploaded_file = st.file_uploader(
-                    "Upload a brain scan image",
-                    type=['png', 'jpg', 'jpeg', 'bmp', 'tiff'],
-                    help="Upload a medical image (CT scan or MRI) for classification"
-                )
-                
-                if uploaded_file is not None:
-                    image = Image.open(uploaded_file)
-                    image_source_name = uploaded_file.name
-            else:
-                # Test image selection
-                test_images = get_test_images()
-                
-                if len(test_images['Bleeding']) == 0 and len(test_images['No Bleeding']) == 0:
-                    st.warning("No test images found in data/test directory.")
-                else:
-                    # Category selection
-                    available_categories = []
-                    if len(test_images['Bleeding']) > 0:
-                        available_categories.append('Bleeding')
-                    if len(test_images['No Bleeding']) > 0:
-                        available_categories.append('No Bleeding')
-                    
-                    if len(available_categories) > 0:
-                        selected_category = st.selectbox(
-                            "Select image category:",
-                            available_categories,
-                            help="Choose whether to test with bleeding or no bleeding images"
-                        )
-                        
-                        if selected_category:
-                            available_images = test_images[selected_category]
-                            
-                            if len(available_images) > 0:
-                                selected_image = st.selectbox(
-                                    f"Select a {selected_category.lower()} test image:",
-                                    available_images,
-                                    help="Choose a test image to analyze. The model will process this image just like an uploaded image."
-                                )
-                                
-                                if selected_image:
-                                    try:
-                                        image = load_test_image(selected_category, selected_image)
-                                        image_source_name = f"{selected_category} - {selected_image}"
-                                    except Exception as e:
-                                        st.error(f"Error loading test image: {str(e)}")
-            
-            # Display image and prediction interface
-            if image is not None:
-                col1, col2 = st.columns([1, 1])
-                
-                with col1:
-                    st.subheader("Input Image")
-                    caption = image_source_name if image_source_name else "Selected Image"
-                    st.image(image, caption=caption, use_container_width=True)
-                
-                with col2:
-                    st.subheader("Prediction Results")
-                    
-                    # Predict button
-                    if st.button("Predict", type="primary", use_container_width=True):
-                        with st.spinner("Analyzing image..."):
-                            # Preprocess image
-                            image_tensor = preprocess_image(image, img_size)
-                            
-                            # Make prediction
-                            prediction, confidence, probabilities = predict_image(
-                                st.session_state.model,
-                                image_tensor,
-                                st.session_state.device
-                            )
-                            
-                            # Display results
-                            st.session_state.prediction = prediction
-                            st.session_state.confidence = confidence
-                            st.session_state.probabilities = probabilities
-                            st.session_state.image_source_name = image_source_name
-                    
-                    # Show results if available
-                    if 'prediction' in st.session_state:
-                        prediction = st.session_state.prediction
-                        confidence = st.session_state.confidence
-                        probabilities = st.session_state.probabilities
-                        
-                        # Prediction box with color coding
-                        if prediction == "Bleeding":
-                            st.markdown(
-                                f'<div class="prediction-box bleeding">'
-                                f'<h2>{prediction} Detected</h2>'
-                                f'<h3>Confidence: {confidence*100:.2f}%</h3>'
-                                f'</div>',
-                                unsafe_allow_html=True
-                            )
-                        else:
-                            st.markdown(
-                                f'<div class="prediction-box no-bleeding">'
-                                f'<h2>{prediction}</h2>'
-                                f'<h3>Confidence: {confidence*100:.2f}%</h3>'
-                                f'</div>',
-                                unsafe_allow_html=True
-                            )
-                        
-                        # Probability chart
-                        fig = create_probability_chart(probabilities)
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # Detailed metrics
-                        st.subheader("Detailed Probabilities")
-                        col3, col4 = st.columns(2)
-                        
-                        with col3:
-                            st.markdown(
-                                '<p class="no-bleeding-label" style="font-size: 1.2rem; margin-bottom: 0.5rem;">No Bleeding</p>',
-                                unsafe_allow_html=True
-                            )
-                            st.metric(
-                                "",
-                                f"{probabilities[0]*100:.2f}%",
-                                delta=f"{probabilities[0]*100 - 50:.2f}%",
-                                delta_color="normal"
-                            )
-                        
-                        with col4:
-                            st.markdown(
-                                '<p class="bleeding-label" style="font-size: 1.2rem; margin-bottom: 0.5rem;">Bleeding</p>',
-                                unsafe_allow_html=True
-                            )
-                            st.metric(
-                                "",
-                                f"{probabilities[1]*100:.2f}%",
-                                delta=f"{probabilities[1]*100 - 50:.2f}%",
-                                delta_color="normal"
-                            )
+        page_home(img_size)
     
-    # Tab 2: Batch Processing
-    with tab2:
-        st.header("Batch Image Processing")
-        
-        if not st.session_state.model_loaded:
-            st.warning("Please load a model in the sidebar before processing images.")
-        else:
-            uploaded_files = st.file_uploader(
-                "Upload multiple images",
-                type=['png', 'jpg', 'jpeg', 'bmp', 'tiff'],
-                accept_multiple_files=True,
-                help="Upload multiple images for batch processing"
-            )
-            
-            if uploaded_files and len(uploaded_files) > 0:
-                if st.button("Process All Images", type="primary", use_container_width=True):
-                    results = []
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    for idx, uploaded_file in enumerate(uploaded_files):
-                        status_text.text(f"Processing {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}")
-                        
-                        try:
-                            # Load and preprocess image
-                            image = Image.open(uploaded_file)
-                            image_tensor = preprocess_image(image, img_size)
-                            
-                            # Make prediction
-                            prediction, confidence, probabilities = predict_image(
-                                st.session_state.model,
-                                image_tensor,
-                                st.session_state.device
-                            )
-                            
-                            results.append({
-                                'Image': uploaded_file.name,
-                                'Prediction': prediction,
-                                'Confidence': f"{confidence*100:.2f}%",
-                                'No Bleeding Prob': f"{probabilities[0]*100:.2f}%",
-                                'Bleeding Prob': f"{probabilities[1]*100:.2f}%"
-                            })
-                        except Exception as e:
-                            results.append({
-                                'Image': uploaded_file.name,
-                                'Prediction': f"Error: {str(e)}",
-                                'Confidence': "N/A",
-                                'No Bleeding Prob': "N/A",
-                                'Bleeding Prob': "N/A"
-                            })
-                        
-                        progress_bar.progress((idx + 1) / len(uploaded_files))
-                    
-                    status_text.text("Processing complete!")
-                    
-                    # Display results table
-                    st.subheader("Results")
-                    import pandas as pd
-                    df = pd.DataFrame(results)
-                    st.dataframe(df, use_container_width=True)
-                    
-                    # Download results as CSV
-                    csv = df.to_csv(index=False)
-                    st.download_button(
-                        label="Download Results as CSV",
-                        data=csv,
-                        file_name="predictions.csv",
-                        mime="text/csv",
-                        use_container_width=True
-                    )
-                    
-                    # Summary statistics
-                    st.subheader("Summary Statistics")
-                    if len(results) > 0:
-                        bleeding_count = sum(1 for r in results if r['Prediction'] == 'Bleeding')
-                        no_bleeding_count = sum(1 for r in results if r['Prediction'] == 'No Bleeding')
-                        
-                        col5, col6 = st.columns(2)
-                        with col5:
-                            st.metric("Total Images", len(results))
-                            st.markdown(
-                                '<p class="bleeding-label" style="font-size: 1.1rem; margin-top: 1rem; margin-bottom: 0.3rem;">Bleeding Detected</p>',
-                                unsafe_allow_html=True
-                            )
-                            st.metric("", bleeding_count)
-                        with col6:
-                            st.markdown(
-                                '<p class="no-bleeding-label" style="font-size: 1.1rem; margin-top: 1rem; margin-bottom: 0.3rem;">No Bleeding</p>',
-                                unsafe_allow_html=True
-                            )
-                            st.metric("", no_bleeding_count)
-                            bleeding_percentage = (bleeding_count / len(results)) * 100 if results else 0
-                            st.markdown('<br>', unsafe_allow_html=True)
-                            st.markdown(
-                                '<p class="bleeding-label" style="font-size: 1.1rem; margin-bottom: 0.3rem;">Bleeding Rate</p>',
-                                unsafe_allow_html=True
-                            )
-                            st.metric("", f"{bleeding_percentage:.1f}%")
-    
-    # Tab 3: About
-    with tab3:
-        st.header("About This Application")
-        
-        st.markdown("""
-        ### Brain Bleeding Classification Model
-        
-        This application provides a real-time interface for testing a deep learning model 
-        that classifies brain medical images (CT scans or MRI) to detect bleeding.
-        
-        #### Features:
-        - **Single Image Prediction**: Upload and analyze individual brain scan images
-        - **Batch Processing**: Process multiple images at once
-        - **Real-time Results**: Get instant predictions with confidence scores
-        - **Visual Feedback**: Interactive charts and probability visualizations
-        - **Model Selection**: Choose between different model architectures
-        
-        #### Model Architecture:
-        The model uses transfer learning with:
-        - **ResNet50**: Pre-trained on ImageNet, fine-tuned for brain bleeding classification
-        - **EfficientNet**: Alternative efficient architecture options
-        
-        #### Usage:
-        1. Load a trained model checkpoint in the sidebar
-        2. Upload an image or multiple images
-        3. Click "Predict" to get real-time classification results
-        4. View detailed probabilities and confidence scores
-        
-        #### Technical Details:
-        - Framework: PyTorch
-        - Image Processing: Albumentations
-        - Interface: Streamlit
-        - Input Size: 224x224 pixels (configurable)
-        - Output: Binary classification (Bleeding / No Bleeding)
-        
-        #### Disclaimer:
-        This tool is for research and educational purposes only. 
-        It should not be used as a substitute for professional medical diagnosis.
-        """)
+    # Store img_size in session state for use in pages
+    if 'img_size' not in st.session_state:
+        st.session_state.img_size = 224
+    # Old tab code removed - now using page functions above
 
 
 if __name__ == "__main__":

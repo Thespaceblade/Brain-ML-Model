@@ -1,0 +1,151 @@
+# Experiment Configuration: ResNet50 Baseline
+# This is a template for experiment configuration files
+
+experiment:
+  name: "resnet50_baseline"
+  description: "ResNet50 with ImageNet pretraining - baseline experiment"
+  experiment_id: "exp_001"
+  date: "2024-01-01"
+  author: "Your Name"
+  
+model:
+  architecture: "resnet50"
+  pretrained: true
+  freeze_backbone: false
+  num_classes: 2
+  dropout_rate: 0.5
+  
+data:
+  dataset_path: "data"
+  dataset_name: "Brain Tumor MRI Dataset"
+  img_size: 224
+  batch_size: 32
+  num_workers: 4
+  pin_memory: true
+  
+  # Data augmentation
+  augmentation:
+    use_albumentations: true
+    horizontal_flip:
+      enabled: true
+      probability: 0.5
+    vertical_flip:
+      enabled: false
+      probability: 0.0
+    rotation:
+      enabled: true
+      limit: 15
+    brightness:
+      enabled: true
+      limit: 0.2
+    contrast:
+      enabled: true
+      limit: 0.2
+    shift_scale_rotate:
+      enabled: true
+      shift_limit: 0.1
+      scale_limit: 0.1
+      rotate_limit: 15
+  
+  # Data splits
+  splits:
+    train: 0.70
+    val: 0.15
+    test: 0.15
+  
+training:
+  epochs: 50
+  learning_rate: 0.001
+  optimizer: "adam"  # adam, sgd, adamw
+  weight_decay: 0.0001
+  momentum: 0.9  # for SGD
+  
+  # Learning rate scheduler
+  scheduler:
+    type: "reduce_on_plateau"  # reduce_on_plateau, step, cosine, none
+    factor: 0.5
+    patience: 5
+    min_lr: 1e-6
+    step_size: 10  # for step scheduler
+    gamma: 0.1  # for step scheduler
+  
+  # Early stopping
+  early_stopping:
+    enabled: true
+    patience: 10
+    min_delta: 0.001
+    monitor: "val_accuracy"
+    mode: "max"
+  
+  # Regularization
+  regularization:
+    dropout: 0.5
+    weight_decay: 0.0001
+    label_smoothing: 0.0
+  
+  # Loss function
+  loss:
+    type: "cross_entropy"  # cross_entropy, focal_loss, weighted_cross_entropy
+    class_weights: null  # [1.0, 1.0] for weighted loss
+  
+evaluation:
+  metrics:
+    - "accuracy"
+    - "precision"
+    - "recall"
+    - "f1"
+    - "auc_roc"
+    - "auc_pr"
+    - "sensitivity"
+    - "specificity"
+    - "mcc"
+  
+  # Cross-validation
+  cross_validation:
+    enabled: false
+    k_folds: 5
+    stratified: true
+  
+  # Statistical testing
+  statistical_testing:
+    enabled: true
+    confidence_level: 0.95
+    bootstrap_samples: 1000
+  
+  # Visualization
+  save_plots: true
+  plots:
+    - "confusion_matrix"
+    - "roc_curve"
+    - "pr_curve"
+    - "training_curves"
+    - "calibration_plot"
+
+# Experiment tracking
+tracking:
+  enabled: true
+  tool: "wandb"  # wandb, mlflow, tensorboard
+  project_name: "brain-bleeding-classification"
+  experiment_name: "resnet50_baseline"
+  tags:
+    - "baseline"
+    - "resnet50"
+    - "transfer_learning"
+  
+# Reproducibility
+reproducibility:
+  seed: 42
+  deterministic: true
+  benchmark: false
+  save_environment: true
+  save_config: true
+
+# Output paths
+output:
+  model_dir: "models/experiments/exp_001"
+  log_dir: "logs/experiments/exp_001"
+  results_dir: "experiments/results/exp_001"
+  plots_dir: "experiments/results/exp_001/plots"
+
+
+
