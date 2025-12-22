@@ -23,15 +23,15 @@ try:
     from src.model import get_model
     from src.utils import get_device
 except ImportError as e:
+    # Streamlit is already initialized at this point (st.set_page_config was called)
     st.error(f"Error importing model utilities: {str(e)}")
     st.stop()
 
 # Import setup_model for later use (after Streamlit is initialized)
 try:
     import setup_model
-except ImportError as e:
+except ImportError:
     setup_model = None
-    st.warning(f"Could not import setup_model: {str(e)}")
 
 # Page configuration
 st.set_page_config(
