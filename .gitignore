@@ -63,5 +63,10 @@ Thumbs.db
 wandb/
 tensorboard_logs/
 
+# Documentation (ignore all .md except README.md and CITATION.md)
+*.md
+!README.md
+!CITATION.md
+
 
 
