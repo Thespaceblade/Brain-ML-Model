@@ -32,8 +32,16 @@ except:
     st.error("App initialization error")
     st.stop()
 
-# Add src to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Add src to path - handle deployment scenarios
+try:
+    if '__file__' in globals() and __file__:
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+    else:
+        app_dir = os.getcwd()
+    sys.path.insert(0, app_dir)
+except Exception:
+    # Fallback: just add current directory
+    sys.path.insert(0, os.getcwd())
 
 try:
     from src.model import get_model
@@ -1227,22 +1235,31 @@ def resolve_model_path(model_path):
     if not model_path:
         return None
     
-    # If absolute path and exists, return it
-    if os.path.isabs(model_path) and os.path.exists(model_path):
-        return model_path
-    
-    # Try multiple possible locations
-    possible_paths = [
-        model_path,  # Original path
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), model_path),  # Relative to app.py
-        os.path.join(os.getcwd(), model_path),  # Relative to current working directory
-    ]
-    
-    for path in possible_paths:
-        if os.path.exists(path):
-            return os.path.abspath(path)
-    
-    return None
+    try:
+        # If absolute path and exists, return it
+        if os.path.isabs(model_path) and os.path.exists(model_path):
+            return os.path.abspath(model_path)
+        
+        # Try multiple possible locations
+        base_dir = get_app_base_dir()
+        possible_paths = [
+            model_path,  # Original path (might be absolute or relative)
+            os.path.join(base_dir, model_path),  # Relative to app directory
+            os.path.join(os.getcwd(), model_path),  # Relative to current working directory
+        ]
+        
+        for path in possible_paths:
+            try:
+                if os.path.exists(path) and os.path.isfile(path):
+                    return os.path.abspath(path)
+            except (OSError, PermissionError):
+                # Skip paths that can't be accessed
+                continue
+        
+        return None
+    except Exception:
+        # Return None if anything fails
+        return None
 
 
 def inspect_checkpoint(model_path):
@@ -1405,83 +1422,132 @@ def predict_image(model, image_tensor, device):
     return prediction, confidence_score, prob_array
 
 
+def get_app_base_dir():
+    """Get the base directory of the app, handling deployment scenarios."""
+    try:
+        # Try to get directory from __file__ (works in most cases)
+        if '__file__' in globals() and __file__:
+            return os.path.dirname(os.path.abspath(__file__))
+    except (NameError, AttributeError):
+        pass
+    
+    # Fallback to current working directory
+    try:
+        cwd = os.getcwd()
+        # Check if app.py exists in current directory
+        if os.path.exists(os.path.join(cwd, 'app.py')):
+            return cwd
+    except:
+        pass
+    
+    # Last resort: use current working directory
+    return os.getcwd()
+
+
 def get_test_images():
     """Get available test images from the data/test directory"""
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    bleeding_dir = os.path.join(base_dir, "data", "test", "bleeding")
-    no_bleeding_dir = os.path.join(base_dir, "data", "test", "no_bleeding")
-    
-    test_images = {
-        'Bleeding': [],
-        'No Bleeding': []
-    }
-    
-    # Get bleeding images
-    if os.path.exists(bleeding_dir):
-        bleeding_files = sorted([f for f in os.listdir(bleeding_dir) 
-                                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
-        test_images['Bleeding'] = bleeding_files[:50]  # Limit to first 50 for performance
-    
-    # Get no bleeding images
-    if os.path.exists(no_bleeding_dir):
-        no_bleeding_files = sorted([f for f in os.listdir(no_bleeding_dir) 
+    try:
+        base_dir = get_app_base_dir()
+        bleeding_dir = os.path.join(base_dir, "data", "test", "bleeding")
+        no_bleeding_dir = os.path.join(base_dir, "data", "test", "no_bleeding")
+        
+        test_images = {
+            'Bleeding': [],
+            'No Bleeding': []
+        }
+        
+        # Get bleeding images
+        if os.path.exists(bleeding_dir):
+            try:
+                bleeding_files = sorted([f for f in os.listdir(bleeding_dir) 
                                     if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
-        test_images['No Bleeding'] = no_bleeding_files[:50]  # Limit to first 50 for performance
-    
-    return test_images
+                test_images['Bleeding'] = bleeding_files[:50]  # Limit to first 50 for performance
+            except (OSError, PermissionError) as e:
+                # Silently fail if directory can't be read
+                pass
+        
+        # Get no bleeding images
+        if os.path.exists(no_bleeding_dir):
+            try:
+                no_bleeding_files = sorted([f for f in os.listdir(no_bleeding_dir) 
+                                        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
+                test_images['No Bleeding'] = no_bleeding_files[:50]  # Limit to first 50 for performance
+            except (OSError, PermissionError) as e:
+                # Silently fail if directory can't be read
+                pass
+        
+        return test_images
+    except Exception as e:
+        # Return empty dict if anything fails
+        return {'Bleeding': [], 'No Bleeding': []}
 
 
 def get_sample_images(num_samples=4):
     """Get a small sample of test images for the draggable preview section"""
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    bleeding_dir = os.path.join(base_dir, "data", "test", "bleeding")
-    no_bleeding_dir = os.path.join(base_dir, "data", "test", "no_bleeding")
-    
-    samples = []
-    
-    # Get bleeding samples
-    if os.path.exists(bleeding_dir):
-        bleeding_files = sorted([f for f in os.listdir(bleeding_dir) 
-                                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
-        for i, filename in enumerate(bleeding_files[:num_samples]):
-            if i < num_samples:
-                image_path = os.path.join(bleeding_dir, filename)
-                if os.path.exists(image_path):
-                    samples.append({
-                        'filename': filename,
-                        'category': 'Bleeding',
-                        'path': image_path
-                    })
-    
-    # Get no bleeding samples
-    if os.path.exists(no_bleeding_dir):
-        no_bleeding_files = sorted([f for f in os.listdir(no_bleeding_dir) 
+    try:
+        base_dir = get_app_base_dir()
+        bleeding_dir = os.path.join(base_dir, "data", "test", "bleeding")
+        no_bleeding_dir = os.path.join(base_dir, "data", "test", "no_bleeding")
+        
+        samples = []
+        
+        # Get bleeding samples
+        if os.path.exists(bleeding_dir):
+            try:
+                bleeding_files = sorted([f for f in os.listdir(bleeding_dir) 
                                     if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
-        for i, filename in enumerate(no_bleeding_files[:num_samples]):
-            if i < num_samples:
-                image_path = os.path.join(no_bleeding_dir, filename)
-                if os.path.exists(image_path):
-                    samples.append({
-                        'filename': filename,
-                        'category': 'No Bleeding',
-                        'path': image_path
-                    })
-    
-    return samples
+                for i, filename in enumerate(bleeding_files[:num_samples]):
+                    if i < num_samples:
+                        image_path = os.path.join(bleeding_dir, filename)
+                        if os.path.exists(image_path):
+                            samples.append({
+                                'filename': filename,
+                                'category': 'Bleeding',
+                                'path': image_path
+                            })
+            except (OSError, PermissionError):
+                # Silently fail if directory can't be read
+                pass
+        
+        # Get no bleeding samples
+        if os.path.exists(no_bleeding_dir):
+            try:
+                no_bleeding_files = sorted([f for f in os.listdir(no_bleeding_dir) 
+                                        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
+                for i, filename in enumerate(no_bleeding_files[:num_samples]):
+                    if i < num_samples:
+                        image_path = os.path.join(no_bleeding_dir, filename)
+                        if os.path.exists(image_path):
+                            samples.append({
+                                'filename': filename,
+                                'category': 'No Bleeding',
+                                'path': image_path
+                            })
+            except (OSError, PermissionError):
+                # Silently fail if directory can't be read
+                pass
+        
+        return samples
+    except Exception:
+        # Return empty list if anything fails
+        return []
 
 
 def load_test_image(category, filename):
     """Load a test image from the data/test directory"""
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    if category == 'Bleeding':
-        image_path = os.path.join(base_dir, "data", "test", "bleeding", filename)
-    else:
-        image_path = os.path.join(base_dir, "data", "test", "no_bleeding", filename)
-    
-    if os.path.exists(image_path):
-        return Image.open(image_path)
-    else:
-        raise FileNotFoundError(f"Test image not found: {image_path}")
+    try:
+        base_dir = get_app_base_dir()
+        if category == 'Bleeding':
+            image_path = os.path.join(base_dir, "data", "test", "bleeding", filename)
+        else:
+            image_path = os.path.join(base_dir, "data", "test", "no_bleeding", filename)
+        
+        if os.path.exists(image_path):
+            return Image.open(image_path)
+        else:
+            raise FileNotFoundError(f"Test image not found: {image_path}")
+    except Exception as e:
+        raise FileNotFoundError(f"Error loading test image: {str(e)}")
 
 
 def image_to_base64(image):
@@ -1508,13 +1574,17 @@ def render_navigation_bar():
     # Handle page navigation via query params (only once per session)
     if 'query_params_processed' not in st.session_state:
         try:
-            query_params = st.query_params
-            if 'page' in query_params:
-                page = query_params['page']
-                if page in pages:
-                    st.session_state.current_page = page
+            # Check if query_params is available (Streamlit >= 1.28.0)
+            if hasattr(st, 'query_params'):
+                query_params = st.query_params
+                if query_params and 'page' in query_params:
+                    page = query_params['page']
+                    if isinstance(page, list):
+                        page = page[0] if page else None
+                    if page and page in pages:
+                        st.session_state.current_page = page
             st.session_state.query_params_processed = True
-        except Exception:
+        except (AttributeError, TypeError, Exception):
             # If query_params is not available (older Streamlit versions), skip it
             st.session_state.query_params_processed = True
             pass
@@ -1987,15 +2057,19 @@ def page_research():
         st.subheader("Performance Results")
         
         # Load results from CSV if available
-        results_csv_path = "research/visualizations/output/research_evaluation/results_summary.csv"
-        if os.path.exists(results_csv_path):
-            import pandas as pd
-            try:
-                df_results = pd.read_csv(results_csv_path)
-                st.markdown("### Results Summary Table")
-                st.dataframe(df_results, use_container_width=True, hide_index=True)
-            except:
-                pass
+        try:
+            base_dir = get_app_base_dir()
+            results_csv_path = os.path.join(base_dir, "research", "visualizations", "output", "research_evaluation", "results_summary.csv")
+            if os.path.exists(results_csv_path):
+                import pandas as pd
+                try:
+                    df_results = pd.read_csv(results_csv_path)
+                    st.markdown("### Results Summary Table")
+                    st.dataframe(df_results, use_container_width=True, hide_index=True)
+                except Exception:
+                    pass
+        except Exception:
+            pass
         
         # Metrics Grid
         st.markdown("### Test Set Performance Metrics")
@@ -2049,10 +2123,14 @@ def page_research():
             """)
         
         with col2:
-            cm_path = "research/visualizations/output/research_evaluation/confusion_matrix_resnet50_test.png"
-            if os.path.exists(cm_path):
-                st.image(cm_path, use_container_width=True)
-            else:
+            try:
+                base_dir = get_app_base_dir()
+                cm_path = os.path.join(base_dir, "research", "visualizations", "output", "research_evaluation", "confusion_matrix_resnet50_test.png")
+                if os.path.exists(cm_path):
+                    st.image(cm_path, use_container_width=True)
+                else:
+                    st.info("Confusion matrix visualization not found")
+            except Exception:
                 st.info("Confusion matrix visualization not found")
         
         st.markdown('</div>', unsafe_allow_html=True)
@@ -2213,8 +2291,13 @@ def page_research():
         st.subheader("Visualization Gallery")
         st.markdown("All visualizations generated from the complete evaluation experiment.")
         
-        viz_dir = "research/visualizations/output/research_evaluation"
-        if os.path.exists(viz_dir):
+        try:
+            base_dir = get_app_base_dir()
+            viz_dir = os.path.join(base_dir, "research", "visualizations", "output", "research_evaluation")
+        except Exception:
+            viz_dir = None
+        
+        if viz_dir and os.path.exists(viz_dir):
             viz_files = {
                 "ROC Curve": {
                     "file": "roc_curve_resnet50_test.png",
@@ -2277,8 +2360,13 @@ def page_research():
         the notebook file.
         """)
         
-        notebook_path = "research/complete_evaluation.ipynb"
-        if os.path.exists(notebook_path):
+        try:
+            base_dir = get_app_base_dir()
+            notebook_path = os.path.join(base_dir, "research", "complete_evaluation.ipynb")
+        except Exception:
+            notebook_path = None
+        
+        if notebook_path and os.path.exists(notebook_path):
             # Try to convert and display notebook
             notebook_html = notebook_to_html(notebook_path)
             if notebook_html:
@@ -2405,7 +2493,9 @@ def main():
     # Do this in background to not block app startup
     if setup_model is not None:
         try:
-            if not os.path.exists("models/best_model.pth"):
+            base_dir = get_app_base_dir()
+            model_path = os.path.join(base_dir, "models", "best_model.pth")
+            if not os.path.exists(model_path):
                 try:
                     # Run setup in background - don't block
                     setup_model.setup_model()
@@ -2575,7 +2665,12 @@ def main():
             st.success(f"✓ Model found: {resolved_path}")
         elif model_path_input:
             st.warning(f"[WARNING] Model not found at: {model_path_input}")
-            st.info(f"Current directory: {os.getcwd()}\nApp directory: {os.path.dirname(os.path.abspath(__file__))}")
+            try:
+                app_dir = get_app_base_dir()
+                current_dir = os.getcwd()
+                st.info(f"Current directory: {current_dir}\nApp directory: {app_dir}")
+            except Exception:
+                st.info(f"Current directory: {os.getcwd()}")
         
         # Auto-load model if it exists and hasn't been loaded yet (only once)
         if (resolved_path and 
@@ -2640,7 +2735,12 @@ def main():
                     st.session_state.device = None
             else:
                 st.error(f"Model file not found: {model_path_input}")
-                st.info(f"**Current directory**: {os.getcwd()}\n**App directory**: {os.path.dirname(os.path.abspath(__file__))}")
+                try:
+                    app_dir = get_app_base_dir()
+                    current_dir = os.getcwd()
+                    st.info(f"**Current directory**: {current_dir}\n**App directory**: {app_dir}")
+                except Exception:
+                    st.info(f"**Current directory**: {os.getcwd()}")
                 
                 # Show deployment instructions
                 with st.expander("How to fix this in Streamlit Cloud", expanded=True):
@@ -2728,17 +2828,27 @@ def main():
     # Get image size from sidebar (will be set in sidebar section)
     img_size = st.session_state.get('img_size', 224)
     
-    # Route to page
-    if current_page == 'Home':
-        page_home(img_size)
-    elif current_page == 'Batch':
-        page_batch(img_size)
-    elif current_page == 'Research':
-        page_research()
-    elif current_page == 'About':
-        page_about()
-    else:
-        page_home(img_size)
+    # Route to page with error handling
+    try:
+        if current_page == 'Home':
+            page_home(img_size)
+        elif current_page == 'Batch':
+            page_batch(img_size)
+        elif current_page == 'Research':
+            page_research()
+        elif current_page == 'About':
+            page_about()
+        else:
+            page_home(img_size)
+    except Exception as e:
+        st.error(f"Error loading page '{current_page}': {str(e)}")
+        st.exception(e)
+        # Fallback to home page
+        try:
+            st.session_state.current_page = 'Home'
+            page_home(img_size)
+        except:
+            st.error("Critical error: Could not load any page. Please refresh the app.")
     
     # Store img_size in session state for use in pages
     if 'img_size' not in st.session_state:
