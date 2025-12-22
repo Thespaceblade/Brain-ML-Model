@@ -46,10 +46,16 @@ except Exception:
 try:
     from src.model import get_model
     from src.utils import get_device
+    _model_imports_available = True
 except ImportError as e:
-    # Streamlit is now initialized (st.set_page_config was called)
-    st.error(f"Error importing model utilities: {str(e)}")
-    st.stop()
+    # Don't stop the app - allow it to start and show error in UI
+    _model_imports_available = False
+    _model_import_error = str(e)
+    # Create dummy functions so app doesn't crash
+    def get_model(*args, **kwargs):
+        raise ImportError(f"Model utilities not available: {_model_import_error}")
+    def get_device():
+        return "cpu"
 
 # Import setup_model for later use (after Streamlit is initialized)
 try:
