@@ -16,6 +16,13 @@ import plotly.express as px
 from io import BytesIO
 import base64
 
+# Page configuration - MUST be first Streamlit call
+st.set_page_config(
+    page_title="Brain Bleeding Classifier",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 # Add src to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -23,7 +30,7 @@ try:
     from src.model import get_model
     from src.utils import get_device
 except ImportError as e:
-    # Streamlit is already initialized at this point (st.set_page_config was called)
+    # Streamlit is now initialized (st.set_page_config was called)
     st.error(f"Error importing model utilities: {str(e)}")
     st.stop()
 
@@ -32,13 +39,6 @@ try:
     import setup_model
 except ImportError:
     setup_model = None
-
-# Page configuration
-st.set_page_config(
-    page_title="Brain Bleeding Classifier",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # Custom CSS for better styling
 st.markdown("""
@@ -2716,11 +2716,7 @@ def main():
     # Old tab code removed - now using page functions above
 
 
-# Streamlit automatically runs the script, but we can also call main() explicitly
-# This ensures the app works both when run directly and via streamlit run
-try:
-    main()
-except Exception as e:
-    st.error(f"Error starting application: {str(e)}")
-    st.exception(e)
+# Streamlit automatically runs the script
+# Call main() to start the app
+main()
 
