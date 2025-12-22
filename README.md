@@ -2,12 +2,12 @@
 
 A deep learning model for classifying brain bleeding from medical MRI images using CNNs with transfer learning. This project uses ResNet50 and EfficientNet architectures to classify brain scans as either showing bleeding/tumors or no bleeding.
 
-## 🔗 Links
+## Links
 
 - [GitHub Repository](https://github.com/Thespaceblade/Brain-ML-Model)
 - [Portfolio](https://jasonindata.vercel.app)
 
-## ✨ Features
+## Features
 
 - **Transfer Learning**: Pre-trained ImageNet weights for better performance
 - **Multiple Architectures**: Support for ResNet50 and EfficientNet variants
@@ -18,13 +18,13 @@ A deep learning model for classifying brain bleeding from medical MRI images usi
 - **Batch Processing**: Support for processing multiple images at once
 - **Comprehensive Metrics**: Accuracy, Precision, Recall, F1-score tracking
 
-## 📋 Requirements
+## Requirements
 
 - Python 3.8+
 - PyTorch 2.0+
 - See `requirements.txt` for full dependencies
 
-## 🚀 Setup
+## Setup
 
 ### 1. Clone the Repository
 
@@ -85,7 +85,7 @@ data/
     └── no_bleeding/
 ```
 
-## 📖 Usage
+## Usage
 
 ### Training
 
@@ -147,7 +147,7 @@ Then open your browser to `http://localhost:8501`
 - Model information and statistics
 - Batch processing support
 
-## 🏗️ Model Architecture
+## Model Architecture
 
 The model uses transfer learning with the following architectures:
 
@@ -196,7 +196,7 @@ Brain-ML-Model/
     └── test/
 ```
 
-## 🎯 Model Performance
+## Model Performance
 
 The model achieves the following performance metrics:
 
@@ -209,7 +209,7 @@ The model achieves the following performance metrics:
 
 *Note: Performance may vary based on training configuration and dataset.*
 
-## 🔧 Configuration
+## Configuration
 
 ### Image Requirements
 
@@ -226,7 +226,7 @@ Key hyperparameters can be adjusted in `scripts/train.py`:
 - Weight decay
 - Dropout rates
 
-## 🚢 Deployment
+## Deployment
 
 ### Streamlit Cloud
 
@@ -244,22 +244,22 @@ The app can be deployed to Streamlit Cloud. See deployment documentation for det
 3. Run `streamlit run app.py`
 4. Access via `http://localhost:8501`
 
-## 📝 Notes
+## Notes
 
 - The model is trained on brain tumor MRI data, mapped to bleeding/no_bleeding classification
 - For production use, ensure proper medical validation and regulatory compliance
 - Model performance depends on image quality and similarity to training data
 - Large model files are stored using Git LFS
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📄 License
+## License
 
 This project is open source and available for educational and research purposes.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Dataset: [Brain Tumor MRI Dataset](https://www.kaggle.com/datasets/masoudnickparvar/brain-tumor-mri-dataset) by Masoud Nickparvar
 - PyTorch and torchvision for deep learning framework

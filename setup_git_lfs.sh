@@ -47,7 +47,7 @@ if [ -f "models/best_model.pth" ]; then
     git lfs ls-files
     echo ""
     
-    echo "✅ Setup complete!"
+    echo "[SUCCESS] Setup complete!"
     echo ""
     echo "Next steps:"
     echo "1. Review changes: git status"
@@ -57,7 +57,7 @@ if [ -f "models/best_model.pth" ]; then
     echo "After pushing, the model file will be stored in Git LFS"
     echo "and will be available in Streamlit Cloud deployment."
 else
-    echo "⚠️  Model file not found: models/best_model.pth"
+    echo "[WARNING] Model file not found: models/best_model.pth"
     echo "Please ensure the model file exists before running this script."
     echo ""
     echo "Setup complete, but model file needs to be added manually:"

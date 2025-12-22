@@ -74,14 +74,14 @@ st.markdown("""
     
     /* Main header with enhanced animation */
     .main-header {
-        font-size: 4rem;
+        font-size: 3.5rem;
         font-weight: 900;
         background: linear-gradient(135deg, #1f77b4 0%, #42a5f5 50%, #7c3aed 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
         text-align: center;
-        margin-bottom: 1rem;
+        margin-bottom: 0.5rem;
         animation: fadeIn 1s ease-in;
         text-shadow: 0 0 30px rgba(31, 119, 180, 0.3);
         letter-spacing: -1px;
@@ -91,9 +91,9 @@ st.markdown("""
     /* Subtitle styling */
     .main-subtitle {
         text-align: center;
-        font-size: 1.2rem;
+        font-size: 1.1rem;
         color: #666;
-        margin-bottom: 2rem;
+        margin-bottom: 0.5rem;
         font-weight: 500;
         animation: fadeInUp 0.8s ease-in 0.3s both;
     }
@@ -723,29 +723,6 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
     
-    /* Header links */
-    .header-links {
-        text-align: center;
-        margin: 0.5rem 0;
-    }
-    
-    .header-links a {
-        color: #1f77b4;
-        text-decoration: none;
-        font-weight: 500;
-        font-size: 0.9rem;
-        transition: all 0.3s ease;
-        display: inline-block;
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
-    }
-    
-    .header-links a:hover {
-        color: #1565c0;
-        text-decoration: underline;
-        background-color: rgba(31, 119, 180, 0.1);
-        transform: translateY(-2px);
-    }
     
     /* Smooth scrolling */
     html {
@@ -815,65 +792,112 @@ st.markdown("""
         opacity: 1;
     }
     
-    /* Navigation Bar - Enhanced */
-    .nav-bar-container {
+    /* Integrated Header Container */
+    .header-container {
+        background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 2rem 1rem 1rem 1rem;
+        margin-bottom: 2rem;
+        border-bottom: 2px solid #e9ecef;
         position: sticky;
         top: 0;
         z-index: 1000;
-        background: white;
-        padding: 1rem 0;
-        margin-bottom: 2rem;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        border-bottom: 3px solid #1f77b4;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+    
+    /* Navigation Bar - Clean Horizontal Tabs */
+    .nav-bar-container {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e9ecef;
     }
     
     .nav-bar {
-        background: linear-gradient(135deg, #1f77b4 0%, #42a5f5 100%);
-        padding: 1rem 2rem;
-        border-radius: 15px;
-        margin: 0 auto;
-        max-width: 1200px;
-        box-shadow: 0 4px 20px rgba(31, 119, 180, 0.4);
         display: flex;
         justify-content: center;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0;
+        flex-wrap: wrap;
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+    
+    /* Navigation Button Styling */
+    .nav-button-wrapper {
+        position: relative;
+        flex: 1;
+        min-width: 120px;
+        max-width: 200px;
+    }
+    
+    /* Style Streamlit buttons to look like navigation tabs */
+    .nav-button-wrapper .stButton > button {
+        width: 100%;
+        background: transparent !important;
+        color: #666 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 0.75rem 1.5rem !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        transition: all 0.3s ease !important;
+        border-bottom: 3px solid transparent !important;
+        margin: 0 !important;
+    }
+    
+    .nav-button-wrapper .stButton > button:hover {
+        background: rgba(31, 119, 180, 0.05) !important;
+        color: #1f77b4 !important;
+        border-bottom-color: rgba(31, 119, 180, 0.3) !important;
+        transform: translateY(-2px) !important;
+    }
+    
+    /* Active state */
+    .nav-button-wrapper.active .stButton > button {
+        color: #1f77b4 !important;
+        border-bottom-color: #1f77b4 !important;
+        background: rgba(31, 119, 180, 0.08) !important;
+        font-weight: 700 !important;
+    }
+    
+    .nav-button-wrapper.active .stButton > button:hover {
+        background: rgba(31, 119, 180, 0.12) !important;
+    }
+    
+    /* Header Links Styling - Icon Buttons */
+    .header-links-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1.5rem;
+        margin: 1rem 0 0.5rem 0;
         flex-wrap: wrap;
     }
     
-    .nav-button {
-        background: rgba(255, 255, 255, 0.2);
-        color: white;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-        padding: 0.75rem 1.5rem;
-        border-radius: 10px;
-        font-weight: 700;
-        font-size: 1rem;
-        cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        text-decoration: none;
-        display: inline-block;
-        min-width: 140px;
-        text-align: center;
-    }
-    
-    .nav-button:hover {
-        background: rgba(255, 255, 255, 0.35);
-        border-color: rgba(255, 255, 255, 0.6);
-        transform: translateY(-3px) scale(1.05);
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-    }
-    
-    .nav-button.active {
-        background: white;
+    .header-link-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: rgba(31, 119, 180, 0.1);
         color: #1f77b4;
-        border-color: white;
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-        transform: scale(1.05);
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
     }
     
-    .nav-button.active:hover {
-        transform: translateY(-3px) scale(1.08);
+    .header-link-icon:hover {
+        background: rgba(31, 119, 180, 0.2);
+        border-color: #1f77b4;
+        transform: translateY(-3px) scale(1.1);
+        box-shadow: 0 4px 12px rgba(31, 119, 180, 0.3);
+    }
+    
+    .header-link-icon svg {
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
     }
     
     /* Research page specific styles */
@@ -1441,12 +1465,12 @@ def image_to_base64(image):
 
 
 def render_navigation_bar():
-    """Render the enhanced navigation bar with page selection"""
+    """Render the integrated navigation bar with clean tab-style design"""
     pages = {
-        "Home": "🏠 Home",
-        "Batch": "📦 Batch Processing",
-        "Research": "🔬 Research & Experiments",
-        "About": "ℹ️ About"
+        "Home": "Home",
+        "Batch": "Batch Processing",
+        "Research": "Research & Experiments",
+        "About": "About"
     }
     
     # Initialize page if not set
@@ -1465,17 +1489,24 @@ def render_navigation_bar():
     
     current_page = st.session_state.current_page
     
-    # Create enhanced navigation bar
+    # Create clean horizontal navigation bar
     st.markdown('<div class="nav-bar-container">', unsafe_allow_html=True)
     st.markdown('<div class="nav-bar">', unsafe_allow_html=True)
     
+    # Create navigation buttons with active state styling
     nav_cols = st.columns(len(pages))
     for idx, (page_key, page_label) in enumerate(pages.items()):
         with nav_cols[idx]:
-            button_type = "primary" if current_page == page_key else "secondary"
-            if st.button(page_label, key=f"nav_{page_key}", use_container_width=True, type=button_type):
+            is_active = current_page == page_key
+            # Add active class wrapper
+            wrapper_class = "nav-button-wrapper active" if is_active else "nav-button-wrapper"
+            st.markdown(f'<div class="{wrapper_class}">', unsafe_allow_html=True)
+            
+            if st.button(page_label, key=f"nav_{page_key}", use_container_width=True, type="secondary"):
                 st.session_state.current_page = page_key
                 st.rerun()
+            
+            st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -1868,7 +1899,7 @@ def page_research():
     # Hero Section
     st.markdown("""
     <div class="experiment-hero">
-        <h1>🔬 Complete Model Evaluation</h1>
+        <h1>Complete Model Evaluation</h1>
         <p>Comprehensive experimental evaluation of the Brain Bleeding Classification model</p>
         <p style="font-size: 1rem; opacity: 0.9;">ResNet50 Transfer Learning | 99.57% Test Accuracy</p>
     </div>
@@ -1876,17 +1907,17 @@ def page_research():
     
     # Create tabs for better organization
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📊 Overview & Results", 
-        "🏗️ Model Architecture", 
-        "⚙️ Training Configuration", 
-        "📈 Visualizations", 
-        "📓 Complete Notebook"
+        "Overview & Results", 
+        "Model Architecture", 
+        "Training Configuration", 
+        "Visualizations", 
+        "Complete Notebook"
     ])
     
     with tab1:
         # Overview Section
         st.markdown('<div class="research-section">', unsafe_allow_html=True)
-        st.subheader("📊 Experiment Overview")
+        st.subheader("Experiment Overview")
         st.markdown("""
         This experiment presents a comprehensive evaluation of a deep learning model for binary classification 
         of brain bleeding in medical CT/MRI images. The model uses ResNet50 with transfer learning, trained on 
@@ -1898,21 +1929,21 @@ def page_research():
         with col1:
             st.markdown("""
             <div class="config-card">
-                <h4>🎯 Objective</h4>
+                <h4>Objective</h4>
                 <p>Binary classification of brain bleeding from medical images using deep learning</p>
             </div>
             """, unsafe_allow_html=True)
         with col2:
             st.markdown("""
             <div class="config-card">
-                <h4>📐 Methodology</h4>
+                <h4>Methodology</h4>
                 <p>Transfer learning with ResNet50, fine-tuned on medical imaging dataset</p>
             </div>
             """, unsafe_allow_html=True)
         with col3:
             st.markdown("""
             <div class="config-card">
-                <h4>✅ Results</h4>
+                <h4>Results</h4>
                 <p>99.57% test accuracy with comprehensive evaluation metrics</p>
             </div>
             """, unsafe_allow_html=True)
@@ -1921,7 +1952,7 @@ def page_research():
         
         # Performance Results Section
         st.markdown('<div class="research-section">', unsafe_allow_html=True)
-        st.subheader("🏆 Performance Results")
+        st.subheader("Performance Results")
         
         # Load results from CSV if available
         results_csv_path = "research/visualizations/output/research_evaluation/results_summary.csv"
@@ -1997,7 +2028,7 @@ def page_research():
     with tab2:
         # Model Architecture Section
         st.markdown('<div class="research-section">', unsafe_allow_html=True)
-        st.subheader("🏗️ Model Architecture")
+        st.subheader("Model Architecture")
         
         col1, col2 = st.columns(2)
         
@@ -2072,7 +2103,7 @@ def page_research():
     with tab3:
         # Training Configuration Section
         st.markdown('<div class="research-section">', unsafe_allow_html=True)
-        st.subheader("⚙️ Training Configuration")
+        st.subheader("Training Configuration")
         
         st.markdown('<div class="config-grid">', unsafe_allow_html=True)
         
@@ -2147,7 +2178,7 @@ def page_research():
     with tab4:
         # Visualizations Gallery
         st.markdown('<div class="research-section">', unsafe_allow_html=True)
-        st.subheader("📈 Visualization Gallery")
+        st.subheader("Visualization Gallery")
         st.markdown("All visualizations generated from the complete evaluation experiment.")
         
         viz_dir = "research/visualizations/output/research_evaluation"
@@ -2183,7 +2214,7 @@ def page_research():
             for idx, (viz_name, viz_info) in enumerate(viz_files.items()):
                 viz_path = os.path.join(viz_dir, viz_info["file"])
                 if os.path.exists(viz_path):
-                    with st.expander(f"📊 {viz_name}", expanded=(idx < 2)):
+                    with st.expander(f"{viz_name}", expanded=(idx < 2)):
                         st.markdown(f'<div class="viz-card">', unsafe_allow_html=True)
                         st.image(viz_path, use_container_width=True)
                         st.markdown(f'<div class="viz-card-title">{viz_name}</div>', unsafe_allow_html=True)
@@ -2192,7 +2223,7 @@ def page_research():
                         # Download button
                         with open(viz_path, "rb") as f:
                             st.download_button(
-                                label=f"📥 Download {viz_name}",
+                                label=f"Download {viz_name}",
                                 data=f.read(),
                                 file_name=viz_info["file"],
                                 mime="image/png",
@@ -2207,7 +2238,7 @@ def page_research():
     with tab5:
         # Jupyter Notebook Viewer
         st.markdown('<div class="research-section">', unsafe_allow_html=True)
-        st.subheader("📓 Complete Evaluation Notebook")
+        st.subheader("Complete Evaluation Notebook")
         st.markdown("""
         The complete evaluation notebook contains the full experimental pipeline including data splitting, 
         model training, evaluation, and visualization generation. View it interactively below or download 
@@ -2224,7 +2255,7 @@ def page_research():
                 st.markdown(notebook_html, unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
-                st.info("💡 To view the notebook interactively, install nbconvert: `pip install nbconvert`")
+                st.info("To view the notebook interactively, install nbconvert: `pip install nbconvert`")
                 
                 # Show notebook summary
                 st.markdown("### Notebook Summary")
@@ -2261,7 +2292,7 @@ def page_research():
                 """)
                 
                 # Show notebook file info
-                with st.expander("📋 Notebook File Information", expanded=False):
+                with st.expander("Notebook File Information", expanded=False):
                     import json
                     try:
                         with open(notebook_path, 'r') as f:
@@ -2278,7 +2309,7 @@ def page_research():
                 # Download notebook button
                 with open(notebook_path, "rb") as f:
                     st.download_button(
-                        label="📥 Download Complete Notebook (.ipynb)",
+                        label="Download Complete Notebook (.ipynb)",
                         data=f.read(),
                         file_name="complete_evaluation.ipynb",
                         mime="application/json",
@@ -2292,7 +2323,7 @@ def page_research():
 
 def page_about():
     """About page"""
-    st.header("ℹ️ About This Application")
+    st.header("About This Application")
     
     st.markdown("""
     ### Overview
@@ -2319,7 +2350,7 @@ def page_about():
     
     ### Important Notes
     
-    ⚠️ **This tool is for research and educational purposes only.**
+    **[WARNING]** This tool is for research and educational purposes only.
     
     - It should **not be used as a substitute for professional medical diagnosis**
     - Always consult with medical professionals for actual diagnosis
@@ -2342,28 +2373,38 @@ def main():
         # Silently fail if setup_model doesn't work - not critical
         pass
     
-    # Enhanced Header
+    # Integrated Header Container
+    st.markdown('<div class="header-container">', unsafe_allow_html=True)
+    
+    # Main Header
     st.markdown('<h1 class="main-header">Brain Bleeding Classifier</h1>', unsafe_allow_html=True)
     st.markdown('<p class="main-subtitle">ResNet50 & EfficientNet CNN Models | Transfer Learning Classification</p>', unsafe_allow_html=True)
     
-    # Links subheadings
-    col_links1, col_links2 = st.columns(2)
-    with col_links1:
-        st.markdown('<div class="header-links"><p><a href="https://github.com/Thespaceblade/Brain-ML-Model" target="_blank">GitHub Repository</a></p></div>', unsafe_allow_html=True)
-    with col_links2:
-        st.markdown('<div class="header-links"><p><a href="https://jasonindata.vercel.app" target="_blank">Portfolio</a></p></div>', unsafe_allow_html=True)
+    # Header Links - Icon Buttons
+    st.markdown("""
+    <div class="header-links-container">
+        <a href="https://github.com/Thespaceblade/Brain-ML-Model" target="_blank" class="header-link-icon" title="GitHub Repository">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+        </a>
+        <a href="https://jasonindata.vercel.app" target="_blank" class="header-link-icon" title="Portfolio">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/>
+            </svg>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
     
-    st.markdown("---")
-    
-    # Navigation Bar
+    # Navigation Bar (integrated in header)
     render_navigation_bar()
     
-    st.markdown("---")
+    st.markdown('</div>', unsafe_allow_html=True)
     
     # Instructions Section (only on Home page)
     if st.session_state.get('current_page', 'Home') == 'Home':
-    with st.expander("How to Use This Application", expanded=False):
-        st.markdown("""
+        with st.expander("How to Use This Application", expanded=False):
+            st.markdown("""
         ### Quick Start Guide
         
         **Step 1: Load Your Model**
@@ -2490,7 +2531,7 @@ def main():
         if resolved_path:
             st.success(f"✓ Model found: {resolved_path}")
         elif model_path_input:
-            st.warning(f"⚠ Model not found at: {model_path_input}")
+            st.warning(f"[WARNING] Model not found at: {model_path_input}")
             st.info(f"Current directory: {os.getcwd()}\nApp directory: {os.path.dirname(os.path.abspath(__file__))}")
         
         # Auto-load model if it exists and hasn't been loaded yet (only once)
@@ -2602,7 +2643,7 @@ def main():
                         st.info("Please enter the model path above and click 'Load Model'")
                         # Update the default path
                         if model_path_input == "models/best_model.pth":
-                            st.info(f"💡 Try using path: {model_save_path}")
+                            st.info(f"Try using path: {model_save_path}")
                     except Exception as e:
                         st.error(f"Error saving model: {str(e)}")
                 
@@ -2653,7 +2694,7 @@ def main():
         page_research()
     elif current_page == 'About':
         page_about()
-        else:
+    else:
         page_home(img_size)
     
     # Store img_size in session state for use in pages
