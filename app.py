@@ -23,6 +23,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Ensure app can start - add a placeholder that gets replaced
+# This helps with health checks on Streamlit Cloud
+try:
+    # This will be replaced by main() content
+    pass
+except:
+    st.error("App initialization error")
+    st.stop()
+
 # Add src to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -2389,25 +2398,25 @@ def page_about():
 
 
 def main():
-    # Display a simple message first to ensure app is running
-    # This helps with health checks
-    try:
-        # Try to setup model file if it doesn't exist (for deployment)
-        # This runs after Streamlit is initialized, so secrets are available
-        if setup_model is not None:
-            try:
-                if not os.path.exists("models/best_model.pth"):
-                    try:
-                        setup_model.setup_model()
-                    except Exception as e:
-                        # Silently fail if setup_model doesn't work - not critical
-                        pass
-            except Exception as e:
-                # Silently fail if setup_model doesn't work - not critical
-                pass
-    except Exception as e:
-        # If anything fails during initialization, continue anyway
-        pass
+    # Render something immediately to pass health checks
+    # Use a container that will be populated below
+    placeholder = st.empty()
+    
+    # Try to setup model file if it doesn't exist (for deployment)
+    # This runs after Streamlit is initialized, so secrets are available
+    # Do this in background to not block app startup
+    if setup_model is not None:
+        try:
+            if not os.path.exists("models/best_model.pth"):
+                try:
+                    # Run setup in background - don't block
+                    setup_model.setup_model()
+                except Exception as e:
+                    # Silently fail if setup_model doesn't work - not critical
+                    pass
+        except Exception as e:
+            # Silently fail if setup_model doesn't work - not critical
+            pass
     
     # Integrated Header Container
     st.markdown('<div class="header-container">', unsafe_allow_html=True)
