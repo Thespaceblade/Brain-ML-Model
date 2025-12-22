@@ -1505,21 +1505,19 @@ def render_navigation_bar():
     if 'current_page' not in st.session_state:
         st.session_state.current_page = "Home"
     
-    # Handle page navigation via query params
-    try:
-        query_params = st.query_params
-        if 'page' in query_params:
-            page = query_params['page']
-            if page in pages:
-                st.session_state.current_page = page
-                # Clear query params after setting state
-                try:
-                    st.query_params.clear()
-                except:
-                    pass  # Ignore if query params can't be cleared
-                st.rerun()
-    except Exception:
-        pass  # Ignore query param errors
+    # Handle page navigation via query params (only once per session)
+    if 'query_params_processed' not in st.session_state:
+        try:
+            query_params = st.query_params
+            if 'page' in query_params:
+                page = query_params['page']
+                if page in pages:
+                    st.session_state.current_page = page
+            st.session_state.query_params_processed = True
+        except Exception:
+            # If query_params is not available (older Streamlit versions), skip it
+            st.session_state.query_params_processed = True
+            pass
     
     current_page = st.session_state.current_page
     
