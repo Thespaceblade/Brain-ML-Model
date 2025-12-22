@@ -1486,14 +1486,20 @@ def render_navigation_bar():
         st.session_state.current_page = "Home"
     
     # Handle page navigation via query params
-    query_params = st.query_params
-    if 'page' in query_params:
-        page = query_params['page']
-        if page in pages:
-            st.session_state.current_page = page
-            # Clear query params after setting state
-            st.query_params.clear()
-            st.rerun()
+    try:
+        query_params = st.query_params
+        if 'page' in query_params:
+            page = query_params['page']
+            if page in pages:
+                st.session_state.current_page = page
+                # Clear query params after setting state
+                try:
+                    st.query_params.clear()
+                except:
+                    pass  # Ignore if query params can't be cleared
+                st.rerun()
+    except Exception:
+        pass  # Ignore query param errors
     
     current_page = st.session_state.current_page
     
@@ -2372,19 +2378,25 @@ def page_about():
 
 
 def main():
-    # Try to setup model file if it doesn't exist (for deployment)
-    # This runs after Streamlit is initialized, so secrets are available
-    if setup_model is not None:
-        try:
-            if not os.path.exists("models/best_model.pth"):
-                try:
-                    setup_model.setup_model()
-                except Exception as e:
-                    # Silently fail if setup_model doesn't work - not critical
-                    pass
-        except Exception as e:
-            # Silently fail if setup_model doesn't work - not critical
-            pass
+    # Display a simple message first to ensure app is running
+    # This helps with health checks
+    try:
+        # Try to setup model file if it doesn't exist (for deployment)
+        # This runs after Streamlit is initialized, so secrets are available
+        if setup_model is not None:
+            try:
+                if not os.path.exists("models/best_model.pth"):
+                    try:
+                        setup_model.setup_model()
+                    except Exception as e:
+                        # Silently fail if setup_model doesn't work - not critical
+                        pass
+            except Exception as e:
+                # Silently fail if setup_model doesn't work - not critical
+                pass
+    except Exception as e:
+        # If anything fails during initialization, continue anyway
+        pass
     
     # Integrated Header Container
     st.markdown('<div class="header-container">', unsafe_allow_html=True)
@@ -2717,6 +2729,13 @@ def main():
 
 
 # Streamlit automatically runs the script
-# Call main() to start the app
-main()
+# Call main() to start the app with error handling
+if __name__ == "__main__" or True:  # Always run for Streamlit
+    try:
+        main()
+    except Exception as e:
+        # Display error to user if app fails to start
+        st.error(f"Application Error: {str(e)}")
+        st.exception(e)
+        st.info("Please check the logs for more details or contact support.")
 
