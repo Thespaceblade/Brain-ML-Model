@@ -19,11 +19,19 @@ import base64
 # Add src to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from src.model import get_model
-from src.utils import get_device
+try:
+    from src.model import get_model
+    from src.utils import get_device
+except ImportError as e:
+    st.error(f"Error importing model utilities: {str(e)}")
+    st.stop()
 
 # Import setup_model for later use (after Streamlit is initialized)
-import setup_model
+try:
+    import setup_model
+except ImportError as e:
+    setup_model = None
+    st.warning(f"Could not import setup_model: {str(e)}")
 
 # Page configuration
 st.set_page_config(
@@ -2366,12 +2374,17 @@ def page_about():
 def main():
     # Try to setup model file if it doesn't exist (for deployment)
     # This runs after Streamlit is initialized, so secrets are available
-    try:
-        if not os.path.exists("models/best_model.pth"):
-            setup_model.setup_model()
-    except Exception as e:
-        # Silently fail if setup_model doesn't work - not critical
-        pass
+    if setup_model is not None:
+        try:
+            if not os.path.exists("models/best_model.pth"):
+                try:
+                    setup_model.setup_model()
+                except Exception as e:
+                    # Silently fail if setup_model doesn't work - not critical
+                    pass
+        except Exception as e:
+            # Silently fail if setup_model doesn't work - not critical
+            pass
     
     # Integrated Header Container
     st.markdown('<div class="header-container">', unsafe_allow_html=True)
@@ -2703,6 +2716,11 @@ def main():
     # Old tab code removed - now using page functions above
 
 
-if __name__ == "__main__":
+# Streamlit automatically runs the script, but we can also call main() explicitly
+# This ensures the app works both when run directly and via streamlit run
+try:
     main()
+except Exception as e:
+    st.error(f"Error starting application: {str(e)}")
+    st.exception(e)
 
