@@ -4,11 +4,20 @@ Real-time testing and visualization interface
 """
 
 import streamlit as st
-import torch
-import numpy as np
-from PIL import Image
 import os
 import sys
+
+# CRITICAL: Force CPU before importing torch to prevent CUDA initialization
+# Streamlit Cloud does NOT provide GPU, so we must prevent CUDA from being initialized
+os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Hide CUDA devices
+os.environ['TORCH_USE_CUDA_DSA'] = '0'  # Disable CUDA DSA
+
+import torch
+# CRITICAL: Set default tensor type to CPU to prevent CUDA allocation attempts
+torch.set_default_tensor_type('torch.FloatTensor')
+
+import numpy as np
+from PIL import Image
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import plotly.graph_objects as go
@@ -25,12 +34,7 @@ st.set_page_config(
 
 # Ensure app can start - add a placeholder that gets replaced
 # This helps with health checks on Streamlit Cloud
-try:
-    # This will be replaced by main() content
-    pass
-except:
-    st.error("App initialization error")
-    st.stop()
+# Note: We don't stop the app here - let it start and show errors in UI
 
 # Add src to path - handle deployment scenarios
 try:
@@ -55,7 +59,8 @@ except ImportError as e:
     def get_model(*args, **kwargs):
         raise ImportError(f"Model utilities not available: {_model_import_error}")
     def get_device():
-        return "cpu"
+        # CRITICAL: Always return CPU for Streamlit Cloud compatibility
+        return torch.device('cpu')
 
 # Import setup_model for later use (after Streamlit is initialized)
 try:
@@ -1228,6 +1233,28 @@ if 'selected_sample_image' not in st.session_state:
     st.session_state.selected_sample_image = None
 
 
+def get_app_base_dir():
+    """Get the base directory of the app, handling deployment scenarios."""
+    try:
+        # Try to get directory from __file__ (works in most cases)
+        if '__file__' in globals() and __file__:
+            return os.path.dirname(os.path.abspath(__file__))
+    except (NameError, AttributeError):
+        pass
+    
+    # Fallback to current working directory
+    try:
+        cwd = os.getcwd()
+        # Check if app.py exists in current directory
+        if os.path.exists(os.path.join(cwd, 'app.py')):
+            return cwd
+    except:
+        pass
+    
+    # Last resort: use current working directory
+    return os.getcwd()
+
+
 def resolve_model_path(model_path):
     """
     Resolve model path by trying multiple possible locations.
@@ -1277,10 +1304,15 @@ def inspect_checkpoint(model_path):
     
     try:
         checkpoint = torch.load(resolved_path, map_location='cpu')
+        try:
+            file_size = os.path.getsize(resolved_path) / (1024 * 1024)
+        except (OSError, Exception):
+            file_size = 0
+        
         info = {
             'type': type(checkpoint).__name__,
             'keys': None,
-            'size_mb': os.path.getsize(resolved_path) / (1024 * 1024),
+            'size_mb': file_size,
             'path': resolved_path
         }
         
@@ -1309,6 +1341,9 @@ def load_model_robust(_model_path_abs, model_name='resnet50'):
     Load model with robust error handling for different checkpoint formats.
     Uses Streamlit caching to avoid reloading the model on every rerun.
     
+    CRITICAL: Forces CPU usage for Streamlit Cloud compatibility.
+    Streamlit Cloud does NOT provide GPU, so we must use CPU explicitly.
+    
     Note: The model_path parameter is prefixed with _ to indicate it's used for cache invalidation.
     We use the absolute path as the cache key to ensure consistency across environments.
     
@@ -1319,6 +1354,9 @@ def load_model_robust(_model_path_abs, model_name='resnet50'):
     Returns:
         Tuple of (model, device)
     """
+    # CRITICAL: Force CPU for Streamlit Cloud (no GPU available)
+    device = torch.device('cpu')
+    
     # Validate that the path exists (should be resolved before calling this function)
     if not os.path.exists(_model_path_abs):
         raise FileNotFoundError(
@@ -1326,20 +1364,19 @@ def load_model_robust(_model_path_abs, model_name='resnet50'):
             f"Please check the file path and ensure the model file exists."
         )
     
-    device = get_device()
-    
     # Create model
     model = get_model(
         model_name=model_name,
         num_classes=2,
         pretrained=False
     )
+    # CRITICAL: Force model to CPU (Streamlit Cloud has no GPU)
     model = model.to(device)
     
     # Load checkpoint with format detection
     try:
-        # Use map_location to ensure compatibility across devices
-        checkpoint = torch.load(_model_path_abs, map_location=device)
+        # CRITICAL: Use map_location='cpu' to force CPU loading (prevents CUDA errors on Streamlit Cloud)
+        checkpoint = torch.load(_model_path_abs, map_location='cpu')
         
         # Handle different checkpoint formats
         if isinstance(checkpoint, dict):
@@ -1386,68 +1423,77 @@ def load_model_robust(_model_path_abs, model_name='resnet50'):
             error_details += f"Model path: {_model_path_abs}\n"
             error_details += f"File exists: {os.path.exists(_model_path_abs)}\n"
             if os.path.exists(_model_path_abs):
-                error_details += f"File size: {os.path.getsize(_model_path_abs) / (1024*1024):.2f} MB\n"
+                try:
+                    file_size = os.path.getsize(_model_path_abs) / (1024*1024)
+                    error_details += f"File size: {file_size:.2f} MB\n"
+                except (OSError, Exception):
+                    error_details += "File size: Unable to determine\n"
         raise Exception(error_details)
 
 
 def preprocess_image(image, img_size=224):
     """Preprocess image for model input"""
-    # Convert PIL to numpy array
-    if isinstance(image, Image.Image):
-        image = np.array(image.convert('RGB'))
-    
-    # Apply transforms
-    transform = A.Compose([
-        A.Resize(img_size, img_size),
-        A.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225]
-        ),
-        ToTensorV2()
-    ])
-    
-    transformed = transform(image=image)
-    image_tensor = transformed['image'].unsqueeze(0)
-    return image_tensor
+    try:
+        # Convert PIL to numpy array
+        if isinstance(image, Image.Image):
+            try:
+                image = np.array(image.convert('RGB'))
+            except Exception as e:
+                raise ValueError(f"Error converting image to RGB: {str(e)}")
+        elif isinstance(image, np.ndarray):
+            # Already a numpy array, ensure it's RGB
+            if len(image.shape) == 2:
+                # Grayscale, convert to RGB
+                image = np.stack([image] * 3, axis=-1)
+            elif image.shape[2] == 4:
+                # RGBA, convert to RGB
+                image = image[:, :, :3]
+        else:
+            raise ValueError(f"Unsupported image type: {type(image)}")
+        
+        # Apply transforms
+        transform = A.Compose([
+            A.Resize(img_size, img_size),
+            A.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            ),
+            ToTensorV2()
+        ])
+        
+        transformed = transform(image=image)
+        image_tensor = transformed['image'].unsqueeze(0)
+        return image_tensor
+    except Exception as e:
+        raise ValueError(f"Error preprocessing image: {str(e)}")
 
 
 def predict_image(model, image_tensor, device):
     """Make prediction on preprocessed image tensor"""
-    image_tensor = image_tensor.to(device)
+    if model is None:
+        raise ValueError("Model is not loaded. Please load a model first.")
+    if device is None:
+        raise ValueError("Device is not set. Please load a model first.")
     
-    with torch.no_grad():
-        outputs = model(image_tensor)
-        probabilities = torch.nn.functional.softmax(outputs, dim=1)
-        confidence, predicted = torch.max(probabilities, 1)
-    
-    class_names = ['No Bleeding', 'Bleeding']
-    prediction = class_names[predicted.item()]
-    confidence_score = confidence.item()
-    prob_array = probabilities[0].cpu().numpy()
-    
-    return prediction, confidence_score, prob_array
-
-
-def get_app_base_dir():
-    """Get the base directory of the app, handling deployment scenarios."""
     try:
-        # Try to get directory from __file__ (works in most cases)
-        if '__file__' in globals() and __file__:
-            return os.path.dirname(os.path.abspath(__file__))
-    except (NameError, AttributeError):
-        pass
-    
-    # Fallback to current working directory
-    try:
-        cwd = os.getcwd()
-        # Check if app.py exists in current directory
-        if os.path.exists(os.path.join(cwd, 'app.py')):
-            return cwd
-    except:
-        pass
-    
-    # Last resort: use current working directory
-    return os.getcwd()
+        # CRITICAL: Force CPU (Streamlit Cloud has no GPU)
+        device = torch.device('cpu')
+        image_tensor = image_tensor.to(device)
+        
+        model.eval()
+        with torch.no_grad():
+            outputs = model(image_tensor)
+            probabilities = torch.nn.functional.softmax(outputs, dim=1)
+            confidence, predicted = torch.max(probabilities, 1)
+        
+        class_names = ['No Bleeding', 'Bleeding']
+        prediction = class_names[predicted.item()]
+        confidence_score = confidence.item()
+        prob_array = probabilities[0].cpu().numpy()
+        
+        return prediction, confidence_score, prob_array
+    except Exception as e:
+        raise RuntimeError(f"Error making prediction: {str(e)}")
 
 
 def get_test_images():
@@ -1466,7 +1512,7 @@ def get_test_images():
         if os.path.exists(bleeding_dir):
             try:
                 bleeding_files = sorted([f for f in os.listdir(bleeding_dir) 
-                                    if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
+                                        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
                 test_images['Bleeding'] = bleeding_files[:50]  # Limit to first 50 for performance
             except (OSError, PermissionError) as e:
                 # Silently fail if directory can't be read
@@ -1476,7 +1522,7 @@ def get_test_images():
         if os.path.exists(no_bleeding_dir):
             try:
                 no_bleeding_files = sorted([f for f in os.listdir(no_bleeding_dir) 
-                                        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
+                                            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
                 test_images['No Bleeding'] = no_bleeding_files[:50]  # Limit to first 50 for performance
             except (OSError, PermissionError) as e:
                 # Silently fail if directory can't be read
@@ -1549,9 +1595,14 @@ def load_test_image(category, filename):
             image_path = os.path.join(base_dir, "data", "test", "no_bleeding", filename)
         
         if os.path.exists(image_path):
-            return Image.open(image_path)
+            try:
+                return Image.open(image_path)
+            except (IOError, OSError, Exception) as e:
+                raise FileNotFoundError(f"Error opening image file {image_path}: {str(e)}")
         else:
             raise FileNotFoundError(f"Test image not found: {image_path}")
+    except FileNotFoundError:
+        raise
     except Exception as e:
         raise FileNotFoundError(f"Error loading test image: {str(e)}")
 
@@ -1626,8 +1677,14 @@ def notebook_to_html(notebook_path):
         from nbconvert import HTMLExporter
         import nbformat
         
-        with open(notebook_path, 'r', encoding='utf-8') as f:
-            notebook = nbformat.read(f, as_version=4)
+        if not os.path.exists(notebook_path):
+            return None
+        
+        try:
+            with open(notebook_path, 'r', encoding='utf-8') as f:
+                notebook = nbformat.read(f, as_version=4)
+        except (IOError, OSError, Exception) as e:
+            return None  # Error reading notebook file
         
         html_exporter = HTMLExporter()
         html_exporter.template_name = 'classic'
@@ -1720,15 +1777,24 @@ def page_home(img_size):
         image = None
         image_source_name = None
         
-        # Check if a sample image was selected
+        # Check if a sample image was selected (legacy support - from quick sample buttons)
         if st.session_state.selected_sample_image:
             try:
-                image = Image.open(st.session_state.selected_sample_image['path'])
-                image_source_name = f"{st.session_state.selected_sample_image['category']} - {st.session_state.selected_sample_image['filename']}"
-                # Clear the selection after using it
-                st.session_state.selected_sample_image = None
+                image_path = st.session_state.selected_sample_image['path']
+                if not os.path.exists(image_path):
+                    st.error(f"Selected image file not found: {image_path}")
+                else:
+                    try:
+                        image = Image.open(image_path)
+                        image_source_name = f"{st.session_state.selected_sample_image['category']} - {st.session_state.selected_sample_image['filename']}"
+                        # Clear the selection after using it
+                        st.session_state.selected_sample_image = None
+                    except (IOError, OSError, Exception) as e:
+                        st.error(f"Error opening image file: {str(e)}")
+                        image = None
             except Exception as e:
                 st.error(f"Error loading selected sample image: {str(e)}")
+                image = None
         
         if image_source == "Upload Image":
             # Enhanced drop zone with clear visual feedback
@@ -1763,65 +1829,36 @@ def page_home(img_size):
             )
             
             if uploaded_file is not None:
-                image = Image.open(uploaded_file)
-                image_source_name = uploaded_file.name
+                try:
+                    image = Image.open(uploaded_file)
+                    image_source_name = uploaded_file.name
+                    # Clear any previous test image selection
+                    if 'selected_test_image' in st.session_state:
+                        del st.session_state.selected_test_image
+                    if 'selected_sample_image' in st.session_state:
+                        del st.session_state.selected_sample_image
+                except (IOError, OSError, Exception) as e:
+                    st.error(f"Error opening uploaded image: {str(e)}")
+                    image = None
+                    image_source_name = None
+            else:
+                # If no file uploaded, clear any previous uploaded image state
+                # But keep test image selection if switching back
+                pass
         
-        # Sample images section
-        if not image:
-            st.markdown("---")
-            st.markdown("""
-            <div class="sample-images-container">
-                <div class="sample-images-title">
-                    Or Try Sample Images
-                </div>
-                <div class="sample-images-instruction">
-                    Click any sample below to test instantly
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+        elif image_source == "Use Test Image":
+            # Load previously selected test image if available
+            if 'selected_test_image' in st.session_state and image is None:
+                try:
+                    test_img_info = st.session_state.selected_test_image
+                    image = load_test_image(test_img_info['category'], test_img_info['filename'])
+                    image_source_name = f"{test_img_info['category']} - {test_img_info['filename']}"
+                except Exception as e:
+                    # If loading fails, clear the selection
+                    del st.session_state.selected_test_image
+                    st.error(f"Error loading previously selected test image: {str(e)}")
             
-            sample_images = get_sample_images(num_samples=4)
-            
-            if len(sample_images) > 0:
-                num_cols = min(4, len(sample_images))
-                cols = st.columns(num_cols)
-                
-                for idx, sample in enumerate(sample_images):
-                    with cols[idx % num_cols]:
-                        try:
-                            sample_img = Image.open(sample['path'])
-                            display_img = sample_img.copy()
-                            display_img.thumbnail((120, 120), Image.Resampling.LANCZOS)
-                            
-                            label_class = "bleeding" if sample['category'] == 'Bleeding' else "no-bleeding"
-                            label_color = "#b71c1c" if sample['category'] == 'Bleeding' else "#1b5e20"
-                            bg_color = "#ffcdd2" if sample['category'] == 'Bleeding' else "#c8e6c9"
-                            
-                            st.markdown(f"""
-                            <div style="
-                                text-align: center;
-                                font-weight: 700;
-                                font-size: 0.75rem;
-                                color: {label_color};
-                                margin-bottom: 0.25rem;
-                                padding: 0.25rem;
-                                background: {bg_color};
-                                border-radius: 5px;
-                                border: 1px solid {label_color};
-                            ">
-                                {sample['category']}
-                            </div>
-                            """, unsafe_allow_html=True)
-                            
-                            st.image(display_img, use_container_width=True)
-                            
-                            if st.button(f"Use", key=f"sample_{idx}", use_container_width=True):
-                                st.session_state.selected_sample_image = sample
-                                st.rerun()
-                        except Exception as e:
-                            st.error(f"Error: {str(e)}")
-        else:
-            # Test image selection
+            # Test image selection with dropdowns
             test_images = get_test_images()
             
             if len(test_images['Bleeding']) == 0 and len(test_images['No Bleeding']) == 0:
@@ -1834,28 +1871,130 @@ def page_home(img_size):
                     available_categories.append('No Bleeding')
                 
                 if len(available_categories) > 0:
+                    # Initialize category selection from stored test image if available
+                    initial_category = None
+                    if 'selected_test_image' in st.session_state:
+                        initial_category = st.session_state.selected_test_image['category']
+                        if initial_category not in available_categories:
+                            initial_category = None
+                    
                     selected_category = st.selectbox(
                         "Select image category:",
                         available_categories,
-                        help="Choose whether to test with bleeding or no bleeding images"
+                        index=0 if initial_category is None else available_categories.index(initial_category),
+                        help="Choose whether to test with bleeding or no bleeding images",
+                        key="test_category_select"
                     )
                     
                     if selected_category:
                         available_images = test_images[selected_category]
                         
                         if len(available_images) > 0:
+                            # Initialize image selection from stored test image if available
+                            initial_image = None
+                            if 'selected_test_image' in st.session_state:
+                                stored = st.session_state.selected_test_image
+                                if stored['category'] == selected_category and stored['filename'] in available_images:
+                                    initial_image = stored['filename']
+                            
+                            test_image_key = f"test_image_{selected_category}"
+                            if test_image_key not in st.session_state or initial_image:
+                                if initial_image:
+                                    st.session_state[test_image_key] = initial_image
+                                else:
+                                    st.session_state[test_image_key] = available_images[0] if available_images else None
+                            
                             selected_image = st.selectbox(
                                 f"Select a {selected_category.lower()} test image:",
                                 available_images,
-                                help="Choose a test image to analyze"
+                                index=0 if initial_image is None else available_images.index(initial_image),
+                                help="Choose a test image to analyze",
+                                key=test_image_key
                             )
                             
                             if selected_image:
-                                try:
-                                    image = load_test_image(selected_category, selected_image)
-                                    image_source_name = f"{selected_category} - {selected_image}"
-                                except Exception as e:
-                                    st.error(f"Error loading test image: {str(e)}")
+                                # Check if selection changed
+                                if 'selected_test_image' not in st.session_state or \
+                                   st.session_state.selected_test_image['category'] != selected_category or \
+                                   st.session_state.selected_test_image['filename'] != selected_image:
+                                    # Store selection in session state
+                                    st.session_state.selected_test_image = {
+                                        'category': selected_category,
+                                        'filename': selected_image
+                                    }
+                                    # Load the image
+                                    try:
+                                        image = load_test_image(selected_category, selected_image)
+                                        image_source_name = f"{selected_category} - {selected_image}"
+                                        st.rerun()  # Rerun to show the image
+                                    except Exception as e:
+                                        st.error(f"Error loading test image: {str(e)}")
+                                        image = None
+                                        image_source_name = None
+                                        # Clear the selection if loading failed
+                                        if 'selected_test_image' in st.session_state:
+                                            del st.session_state.selected_test_image
+                
+                # Sample images section - quick select
+                st.markdown("---")
+                st.markdown("""
+                <div class="sample-images-container">
+                    <div class="sample-images-title">
+                        Or Click a Sample Image Below
+                    </div>
+                    <div class="sample-images-instruction">
+                        Click any sample below to test instantly
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                sample_images = get_sample_images(num_samples=4)
+                
+                if len(sample_images) > 0:
+                    num_cols = min(4, len(sample_images))
+                    cols = st.columns(num_cols)
+                    
+                    for idx, sample in enumerate(sample_images):
+                        with cols[idx % num_cols]:
+                            try:
+                                if not os.path.exists(sample['path']):
+                                    st.warning(f"Image not found: {sample['filename']}")
+                                    continue
+                                sample_img = Image.open(sample['path'])
+                                display_img = sample_img.copy()
+                                display_img.thumbnail((120, 120), Image.Resampling.LANCZOS)
+                                
+                                label_class = "bleeding" if sample['category'] == 'Bleeding' else "no-bleeding"
+                                label_color = "#b71c1c" if sample['category'] == 'Bleeding' else "#1b5e20"
+                                bg_color = "#ffcdd2" if sample['category'] == 'Bleeding' else "#c8e6c9"
+                                
+                                st.markdown(f"""
+                                <div style="
+                                    text-align: center;
+                                    font-weight: 700;
+                                    font-size: 0.75rem;
+                                    color: {label_color};
+                                    margin-bottom: 0.25rem;
+                                    padding: 0.25rem;
+                                    background: {bg_color};
+                                    border-radius: 5px;
+                                    border: 1px solid {label_color};
+                                ">
+                                    {sample['category']}
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
+                                st.image(display_img, use_container_width=True)
+                                
+                                if st.button(f"Use", key=f"sample_{idx}", use_container_width=True):
+                                    # Store selection and trigger rerun
+                                    st.session_state.selected_test_image = {
+                                        'category': sample['category'],
+                                        'filename': sample['filename']
+                                    }
+                                    st.rerun()
+                            except Exception as e:
+                                st.error(f"Error: {str(e)}")
         
         # Display image and prediction interface
         if image is not None:
@@ -1873,17 +2012,22 @@ def page_home(img_size):
                 
                 if predict_clicked:
                     with st.spinner("Analyzing image..."):
-                        image_tensor = preprocess_image(image, img_size)
-                        prediction, confidence, probabilities = predict_image(
-                            st.session_state.model,
-                            image_tensor,
-                            st.session_state.device
-                        )
-                        
-                        st.session_state.prediction = prediction
-                        st.session_state.confidence = confidence
-                        st.session_state.probabilities = probabilities
-                        st.session_state.image_source_name = image_source_name
+                        try:
+                            image_tensor = preprocess_image(image, img_size)
+                            prediction, confidence, probabilities = predict_image(
+                                st.session_state.model,
+                                image_tensor,
+                                st.session_state.device
+                            )
+                            
+                            st.session_state.prediction = prediction
+                            st.session_state.confidence = confidence
+                            st.session_state.probabilities = probabilities
+                            st.session_state.image_source_name = image_source_name
+                        except (ValueError, RuntimeError, Exception) as e:
+                            st.error(f"Prediction error: {str(e)}")
+                            if 'prediction' in st.session_state:
+                                del st.session_state.prediction
                 
                 # Show results if available
                 if 'prediction' in st.session_state:
@@ -1945,13 +2089,34 @@ def page_batch(img_size):
                 
                 for idx, uploaded_file in enumerate(uploaded_files):
                     try:
-                        image = Image.open(uploaded_file)
-                        image_tensor = preprocess_image(image, img_size)
-                        prediction, confidence, probabilities = predict_image(
-                            st.session_state.model,
-                            image_tensor,
-                            st.session_state.device
-                        )
+                        try:
+                            image = Image.open(uploaded_file)
+                        except (IOError, OSError, Exception) as img_error:
+                            results.append({
+                                'Filename': uploaded_file.name,
+                                'Prediction': 'Error',
+                                'Confidence': f"Image open error: {str(img_error)}",
+                                'No Bleeding Prob': 'N/A',
+                                'Bleeding Prob': 'N/A'
+                            })
+                            continue
+                        
+                        try:
+                            image_tensor = preprocess_image(image, img_size)
+                            prediction, confidence, probabilities = predict_image(
+                                st.session_state.model,
+                                image_tensor,
+                                st.session_state.device
+                            )
+                        except (ValueError, RuntimeError, Exception) as pred_error:
+                            results.append({
+                                'Filename': uploaded_file.name,
+                                'Prediction': 'Error',
+                                'Confidence': f"Prediction error: {str(pred_error)}",
+                                'No Bleeding Prob': 'N/A',
+                                'Bleeding Prob': 'N/A'
+                            })
+                            continue
                         
                         results.append({
                             'Filename': uploaded_file.name,
@@ -2342,14 +2507,18 @@ def page_research():
                         st.markdown(f'<p style="padding: 1rem; color: #666;">{viz_info["desc"]}</p>', unsafe_allow_html=True)
                         
                         # Download button
-                        with open(viz_path, "rb") as f:
+                        try:
+                            with open(viz_path, "rb") as f:
+                                viz_data = f.read()
                             st.download_button(
                                 label=f"Download {viz_name}",
-                                data=f.read(),
+                                data=viz_data,
                                 file_name=viz_info["file"],
                                 mime="image/png",
                                 key=f"download_{idx}"
                             )
+                        except (IOError, OSError, Exception) as e:
+                            st.warning(f"Could not read visualization file: {str(e)}")
                         st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.info("Visualizations directory not found")
@@ -2421,26 +2590,34 @@ def page_research():
                 with st.expander("Notebook File Information", expanded=False):
                     import json
                     try:
-                        with open(notebook_path, 'r') as f:
+                        with open(notebook_path, 'r', encoding='utf-8') as f:
                             nb_data = json.load(f)
+                        try:
+                            file_size = os.path.getsize(notebook_path) / 1024
+                        except (OSError, Exception):
+                            file_size = 0
                         st.json({
                             "Total Cells": len(nb_data.get('cells', [])),
                             "Notebook Format": nb_data.get('nbformat', 'Unknown'),
                             "Notebook Format Minor": nb_data.get('nbformat_minor', 'Unknown'),
-                            "File Size": f"{os.path.getsize(notebook_path) / 1024:.2f} KB"
+                            "File Size": f"{file_size:.2f} KB"
                         })
-                    except Exception as e:
+                    except (IOError, OSError, json.JSONDecodeError, Exception) as e:
                         st.info(f"Could not read notebook metadata: {str(e)}")
                 
                 # Download notebook button
-                with open(notebook_path, "rb") as f:
+                try:
+                    with open(notebook_path, "rb") as f:
+                        notebook_data = f.read()
                     st.download_button(
                         label="Download Complete Notebook (.ipynb)",
-                        data=f.read(),
+                        data=notebook_data,
                         file_name="complete_evaluation.ipynb",
                         mime="application/json",
                         key="download_notebook"
                     )
+                except (IOError, OSError, Exception) as e:
+                    st.error(f"Error reading notebook file: {str(e)}")
         else:
             st.warning(f"Notebook file not found at: {notebook_path}")
         
@@ -2490,27 +2667,45 @@ def page_about():
 
 
 def main():
-    # Render something immediately to pass health checks
-    # Use a container that will be populated below
-    placeholder = st.empty()
-    
-    # Try to setup model file if it doesn't exist (for deployment)
-    # This runs after Streamlit is initialized, so secrets are available
-    # Do this in background to not block app startup
-    if setup_model is not None:
-        try:
-            base_dir = get_app_base_dir()
-            model_path = os.path.join(base_dir, "models", "best_model.pth")
-            if not os.path.exists(model_path):
-                try:
-                    # Run setup in background - don't block
-                    setup_model.setup_model()
-                except Exception as e:
-                    # Silently fail if setup_model doesn't work - not critical
-                    pass
-        except Exception as e:
-            # Silently fail if setup_model doesn't work - not critical
-            pass
+    # CRITICAL: Add startup checkpoint - helps debug if app crashes
+    # This ensures Streamlit has started before we do anything heavy
+    try:
+        # Check if imports are available and show warning if not
+        if not _model_imports_available:
+            st.error(f"⚠️ Model utilities not available: {_model_import_error}")
+            st.warning("The app will start but model functionality will be limited. Please check that all dependencies are installed correctly.")
+            st.info("This might be due to missing dependencies or import errors. Check the logs for more details.")
+        
+        # CRITICAL: Force CPU device for Streamlit Cloud (no GPU available)
+        # This must be done early to prevent CUDA-related crashes
+        import torch
+        if torch.cuda.is_available():
+            # Even if CUDA is available, force CPU for Streamlit Cloud compatibility
+            torch.set_default_tensor_type('torch.FloatTensor')
+        
+        # Try to setup model file if it doesn't exist (for deployment)
+        # This runs after Streamlit is initialized, so secrets are available
+        # Do this in background to not block app startup
+        if setup_model is not None:
+            try:
+                base_dir = get_app_base_dir()
+                model_path = os.path.join(base_dir, "models", "best_model.pth")
+                if not os.path.exists(model_path):
+                    try:
+                        # Run setup in background - don't block
+                        setup_model.setup_model()
+                    except Exception as e:
+                        # Silently fail if setup_model doesn't work - not critical
+                        pass
+            except Exception as e:
+                # Silently fail if setup_model doesn't work - not critical
+                pass
+    except Exception as e:
+        # Don't crash the app - show error and continue
+        st.error(f"Startup error: {str(e)}")
+        import traceback
+        with st.expander("Startup Error Details", expanded=False):
+            st.code(traceback.format_exc())
     
     # Integrated Header Container
     st.markdown('<div class="header-container">', unsafe_allow_html=True)
@@ -2695,8 +2890,9 @@ def main():
                     st.session_state.model_loaded = True
                     st.session_state.model_path = resolved_path
                 st.success("✓ Model auto-loaded successfully!")
-                device_name = "GPU" if device.type == 'cuda' else "CPU"
-                st.info(f"Running on: {device_name}")
+                # CRITICAL: Always show CPU (Streamlit Cloud has no GPU)
+                device_name = "CPU"
+                st.info(f"Running on: {device_name} (Streamlit Cloud uses CPU only)")
             except Exception as e:
                 # Show a warning but don't block the app
                 st.warning(f"Auto-load failed. Please load manually. Error: {str(e)}")
@@ -2728,8 +2924,9 @@ def main():
                         st.session_state.model_loaded = True
                         st.session_state.model_path = resolved_path
                     st.success(f"Model loaded successfully!")
-                    device_name = "GPU" if device.type == 'cuda' else "CPU"
-                    st.info(f"Running on: {device_name}")
+                    # CRITICAL: Always show CPU (Streamlit Cloud has no GPU)
+                    device_name = "CPU"
+                    st.info(f"Running on: {device_name} (Streamlit Cloud uses CPU only)")
                 except Exception as e:
                     error_msg = str(e)
                     st.error(f"Error loading model: {error_msg}")
@@ -2784,16 +2981,21 @@ def main():
                 if uploaded_model is not None:
                     # Save uploaded model
                     try:
-                        os.makedirs("models", exist_ok=True)
-                        model_save_path = os.path.join("models", uploaded_model.name)
-                        with open(model_save_path, "wb") as f:
-                            f.write(uploaded_model.getbuffer())
-                        st.success(f"Model saved to {model_save_path}")
-                        st.info("Please enter the model path above and click 'Load Model'")
-                        # Update the default path
-                        if model_path_input == "models/best_model.pth":
-                            st.info(f"Try using path: {model_save_path}")
-                    except Exception as e:
+                        base_dir = get_app_base_dir()
+                        models_dir = os.path.join(base_dir, "models")
+                        os.makedirs(models_dir, exist_ok=True)
+                        model_save_path = os.path.join(models_dir, uploaded_model.name)
+                        try:
+                            with open(model_save_path, "wb") as f:
+                                f.write(uploaded_model.getbuffer())
+                            st.success(f"Model saved to {model_save_path}")
+                            st.info("Please enter the model path above and click 'Load Model'")
+                            # Update the default path
+                            if model_path_input == "models/best_model.pth":
+                                st.info(f"Try using path: {model_save_path}")
+                        except (IOError, OSError, PermissionError) as write_error:
+                            st.error(f"Error writing model file: {str(write_error)}")
+                    except (OSError, Exception) as e:
                         st.error(f"Error saving model: {str(e)}")
                 
                 st.session_state.model_loaded = False
@@ -2804,8 +3006,9 @@ def main():
         if st.session_state.model_loaded:
             st.success("Model Ready")
             if st.session_state.device:
-                device_name = "GPU" if st.session_state.device.type == 'cuda' else "CPU"
-                st.info(f"Running on: {device_name}")
+                # CRITICAL: Always show CPU (Streamlit Cloud has no GPU)
+                device_name = "CPU"
+                st.info(f"Running on: {device_name} (Streamlit Cloud uses CPU only)")
         else:
             st.warning("Model Not Loaded")
             st.info("Please load a model to make predictions")
@@ -2869,7 +3072,9 @@ if __name__ == "__main__" or True:  # Always run for Streamlit
         main()
     except Exception as e:
         # Display error to user if app fails to start
+        import traceback
         st.error(f"Application Error: {str(e)}")
-        st.exception(e)
+        with st.expander("Error Details", expanded=False):
+            st.code(traceback.format_exc())
         st.info("Please check the logs for more details or contact support.")
 
