@@ -14,7 +14,13 @@ os.environ['TORCH_USE_CUDA_DSA'] = '0'  # Disable CUDA DSA
 
 import torch
 # CRITICAL: Set default tensor type to CPU to prevent CUDA allocation attempts
-torch.set_default_tensor_type('torch.FloatTensor')
+# Wrap in try-except for compatibility with newer PyTorch versions
+try:
+    torch.set_default_tensor_type('torch.FloatTensor')
+except (AttributeError, RuntimeError):
+    # In newer PyTorch versions, this might not be available or necessary
+    # The CUDA_VISIBLE_DEVICES env var should be sufficient
+    pass
 
 import numpy as np
 from PIL import Image
@@ -2679,9 +2685,13 @@ def main():
         # CRITICAL: Force CPU device for Streamlit Cloud (no GPU available)
         # This must be done early to prevent CUDA-related crashes
         import torch
-        if torch.cuda.is_available():
-            # Even if CUDA is available, force CPU for Streamlit Cloud compatibility
-            torch.set_default_tensor_type('torch.FloatTensor')
+        try:
+            if torch.cuda.is_available():
+                # Even if CUDA is available, force CPU for Streamlit Cloud compatibility
+                torch.set_default_tensor_type('torch.FloatTensor')
+        except (AttributeError, RuntimeError):
+            # In newer PyTorch versions, this might not be available or necessary
+            pass
         
         # Try to setup model file if it doesn't exist (for deployment)
         # This runs after Streamlit is initialized, so secrets are available
