@@ -6,7 +6,12 @@ Uses transfer learning with ResNet50 backbone
 import torch
 import torch.nn as nn
 import torchvision.models as models
-from torchvision.models import ResNet50_Weights, EfficientNet_B0_Weights
+from torchvision.models import (
+    ResNet50_Weights,
+    EfficientNet_B0_Weights,
+    EfficientNet_B1_Weights,
+    EfficientNet_B2_Weights,
+)
 
 
 class BrainBleedingClassifier(nn.Module):
@@ -73,14 +78,17 @@ class EfficientNetClassifier(nn.Module):
         try:
             import torchvision.models as models
             # Load EfficientNet
-            weights = EfficientNet_B0_Weights.DEFAULT if pretrained else None
             if model_name == 'efficientnet_b0':
+                weights = EfficientNet_B0_Weights.DEFAULT if pretrained else None
                 self.backbone = models.efficientnet_b0(weights=weights)
             elif model_name == 'efficientnet_b1':
+                weights = EfficientNet_B1_Weights.DEFAULT if pretrained else None
                 self.backbone = models.efficientnet_b1(weights=weights)
             elif model_name == 'efficientnet_b2':
+                weights = EfficientNet_B2_Weights.DEFAULT if pretrained else None
                 self.backbone = models.efficientnet_b2(weights=weights)
             else:
+                weights = EfficientNet_B0_Weights.DEFAULT if pretrained else None
                 self.backbone = models.efficientnet_b0(weights=weights)
             
             # Replace classifier
@@ -134,4 +142,3 @@ def get_model(model_name='resnet50', num_classes=2, pretrained=True, freeze_back
         )
     else:
         raise ValueError(f"Unknown model name: {model_name}")
-

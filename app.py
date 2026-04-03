@@ -6,6 +6,8 @@ Real-time testing and visualization interface
 import streamlit as st
 import os
 import sys
+import importlib.util
+import importlib
 
 # CRITICAL: Force CPU before importing torch to prevent CUDA initialization
 # Streamlit Cloud does NOT provide GPU, so we must prevent CUDA from being initialized
@@ -24,8 +26,11 @@ except (AttributeError, RuntimeError):
 
 import numpy as np
 from PIL import Image
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
+from torchvision import transforms as T
+
+A = None
+ToTensorV2 = None
+ALBUMENTATIONS_AVAILABLE = False
 import plotly.graph_objects as go
 import plotly.express as px
 from io import BytesIO
@@ -53,26 +58,31 @@ except Exception:
     # Fallback: just add current directory
     sys.path.insert(0, os.getcwd())
 
-try:
-    from src.model import get_model
-    from src.utils import get_device
+_model_spec = importlib.util.find_spec("src.model")
+_utils_spec = importlib.util.find_spec("src.utils")
+if _model_spec and _utils_spec:
+    model_module = importlib.import_module("src.model")
+    utils_module = importlib.import_module("src.utils")
+    get_model = model_module.get_model
+    get_device = utils_module.get_device
     _model_imports_available = True
-except ImportError as e:
+    _model_import_error = ""
+else:
     # Don't stop the app - allow it to start and show error in UI
     _model_imports_available = False
-    _model_import_error = str(e)
+    _model_import_error = "Could not locate src.model and/or src.utils modules."
+
     # Create dummy functions so app doesn't crash
     def get_model(*args, **kwargs):
         raise ImportError(f"Model utilities not available: {_model_import_error}")
+
     def get_device():
         # CRITICAL: Always return CPU for Streamlit Cloud compatibility
         return torch.device('cpu')
 
 # Import setup_model for later use (after Streamlit is initialized)
-try:
-    import setup_model
-except ImportError:
-    setup_model = None
+_setup_model_spec = importlib.util.find_spec("setup_model")
+setup_model = importlib.import_module("setup_model") if _setup_model_spec else None
 
 # Custom CSS for better styling
 st.markdown("""
@@ -1239,6 +1249,28 @@ if 'selected_sample_image' not in st.session_state:
     st.session_state.selected_sample_image = None
 
 
+def ensure_albumentations_loaded():
+    """Lazy-load albumentations and cache availability safely."""
+    global A, ToTensorV2, ALBUMENTATIONS_AVAILABLE
+    if ALBUMENTATIONS_AVAILABLE:
+        return True
+
+    alb_spec = importlib.util.find_spec("albumentations")
+    if not alb_spec:
+        return False
+
+    try:
+        A = importlib.import_module("albumentations")
+        ToTensorV2 = importlib.import_module("albumentations.pytorch").ToTensorV2
+        ALBUMENTATIONS_AVAILABLE = True
+    except Exception:
+        A = None
+        ToTensorV2 = None
+        ALBUMENTATIONS_AVAILABLE = False
+
+    return ALBUMENTATIONS_AVAILABLE
+
+
 def get_app_base_dir():
     """Get the base directory of the app, handling deployment scenarios."""
     try:
@@ -1458,17 +1490,30 @@ def preprocess_image(image, img_size=224):
             raise ValueError(f"Unsupported image type: {type(image)}")
         
         # Apply transforms
-        transform = A.Compose([
-            A.Resize(img_size, img_size),
-            A.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            ),
-            ToTensorV2()
-        ])
-        
-        transformed = transform(image=image)
-        image_tensor = transformed['image'].unsqueeze(0)
+        if ensure_albumentations_loaded():
+            transform = A.Compose([
+                A.Resize(img_size, img_size),
+                A.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                ),
+                ToTensorV2()
+            ])
+
+            transformed = transform(image=image)
+            image_tensor = transformed['image'].unsqueeze(0)
+        else:
+            transform = T.Compose([
+                T.ToPILImage(),
+                T.Resize((img_size, img_size)),
+                T.ToTensor(),
+                T.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
+            ])
+            image_tensor = transform(image).unsqueeze(0)
+
         return image_tensor
     except Exception as e:
         raise ValueError(f"Error preprocessing image: {str(e)}")
@@ -2852,6 +2897,10 @@ def main():
     # Sidebar for model configuration
     with st.sidebar:
         st.header("Model Configuration")
+        if not ensure_albumentations_loaded():
+            st.warning(
+                "Albumentations is not installed. Using torchvision preprocessing fallback."
+            )
         
         # Model selection
         model_name = st.selectbox(
@@ -3087,4 +3136,3 @@ if __name__ == "__main__" or True:  # Always run for Streamlit
         with st.expander("Error Details", expanded=False):
             st.code(traceback.format_exc())
         st.info("Please check the logs for more details or contact support.")
-
