@@ -1247,6 +1247,8 @@ if 'auto_load_attempted' not in st.session_state:
     st.session_state.auto_load_attempted = False
 if 'selected_sample_image' not in st.session_state:
     st.session_state.selected_sample_image = None
+if 'setup_model_attempted' not in st.session_state:
+    st.session_state.setup_model_attempted = False
 
 
 def ensure_albumentations_loaded():
@@ -2727,21 +2729,11 @@ def main():
             st.warning("The app will start but model functionality will be limited. Please check that all dependencies are installed correctly.")
             st.info("This might be due to missing dependencies or import errors. Check the logs for more details.")
         
-        # CRITICAL: Force CPU device for Streamlit Cloud (no GPU available)
-        # This must be done early to prevent CUDA-related crashes
-        import torch
-        try:
-            if torch.cuda.is_available():
-                # Even if CUDA is available, force CPU for Streamlit Cloud compatibility
-                torch.set_default_tensor_type('torch.FloatTensor')
-        except (AttributeError, RuntimeError):
-            # In newer PyTorch versions, this might not be available or necessary
-            pass
-        
         # Try to setup model file if it doesn't exist (for deployment)
         # This runs after Streamlit is initialized, so secrets are available
-        # Do this in background to not block app startup
-        if setup_model is not None:
+        # Only attempt once per session to avoid repeated network/file work on reruns
+        if setup_model is not None and not st.session_state.setup_model_attempted:
+            st.session_state.setup_model_attempted = True
             try:
                 base_dir = get_app_base_dir()
                 model_path = os.path.join(base_dir, "models", "best_model.pth")
@@ -3126,7 +3118,7 @@ def main():
 
 # Streamlit automatically runs the script
 # Call main() to start the app with error handling
-if __name__ == "__main__" or True:  # Always run for Streamlit
+if __name__ == "__main__":
     try:
         main()
     except Exception as e:
