@@ -24,8 +24,15 @@ except (AttributeError, RuntimeError):
 
 import numpy as np
 from PIL import Image
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
+from torchvision import transforms as T
+try:
+    import albumentations as A
+    from albumentations.pytorch import ToTensorV2
+    ALBUMENTATIONS_AVAILABLE = True
+except ImportError:
+    A = None
+    ToTensorV2 = None
+    ALBUMENTATIONS_AVAILABLE = False
 import plotly.graph_objects as go
 import plotly.express as px
 from io import BytesIO
@@ -1458,17 +1465,30 @@ def preprocess_image(image, img_size=224):
             raise ValueError(f"Unsupported image type: {type(image)}")
         
         # Apply transforms
-        transform = A.Compose([
-            A.Resize(img_size, img_size),
-            A.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            ),
-            ToTensorV2()
-        ])
-        
-        transformed = transform(image=image)
-        image_tensor = transformed['image'].unsqueeze(0)
+        if ALBUMENTATIONS_AVAILABLE:
+            transform = A.Compose([
+                A.Resize(img_size, img_size),
+                A.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                ),
+                ToTensorV2()
+            ])
+
+            transformed = transform(image=image)
+            image_tensor = transformed['image'].unsqueeze(0)
+        else:
+            transform = T.Compose([
+                T.ToPILImage(),
+                T.Resize((img_size, img_size)),
+                T.ToTensor(),
+                T.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
+            ])
+            image_tensor = transform(image).unsqueeze(0)
+
         return image_tensor
     except Exception as e:
         raise ValueError(f"Error preprocessing image: {str(e)}")
@@ -2852,6 +2872,10 @@ def main():
     # Sidebar for model configuration
     with st.sidebar:
         st.header("Model Configuration")
+        if not ALBUMENTATIONS_AVAILABLE:
+            st.warning(
+                "Albumentations is not installed. Using torchvision preprocessing fallback."
+            )
         
         # Model selection
         model_name = st.selectbox(
@@ -3087,4 +3111,3 @@ if __name__ == "__main__" or True:  # Always run for Streamlit
         with st.expander("Error Details", expanded=False):
             st.code(traceback.format_exc())
         st.info("Please check the logs for more details or contact support.")
-
