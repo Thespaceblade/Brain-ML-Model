@@ -7,9 +7,15 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
 import numpy as np
+try:
+    import albumentations as A
+    from albumentations.pytorch import ToTensorV2
+    ALBUMENTATIONS_AVAILABLE = True
+except ImportError:
+    A = None
+    ToTensorV2 = None
+    ALBUMENTATIONS_AVAILABLE = False
 
 
 class BrainBleedingDataset(Dataset):
@@ -88,7 +94,7 @@ class BrainBleedingDataset(Dataset):
         
         # Apply transforms
         if self.transform:
-            if isinstance(self.transform, A.Compose):
+            if ALBUMENTATIONS_AVAILABLE and isinstance(self.transform, A.Compose):
                 # Albumentations transform
                 transformed = self.transform(image=image)
                 image = transformed['image']
@@ -112,6 +118,10 @@ def get_transforms(split='train', img_size=(224, 224), use_albumentations=True):
     Returns:
         Transform pipeline
     """
+    if use_albumentations and not ALBUMENTATIONS_AVAILABLE:
+        print("Albumentations is not installed; using torchvision transforms.")
+        use_albumentations = False
+
     if use_albumentations:
         if split == 'train':
             # Training transforms with augmentation
@@ -239,4 +249,3 @@ def get_data_loaders(data_dir, batch_size=32, img_size=(224, 224), num_workers=4
     )
     
     return train_loader, val_loader, test_loader
-
