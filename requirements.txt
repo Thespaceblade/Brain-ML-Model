@@ -1,19 +1,8 @@
 # Prefer CPU wheels on Streamlit Cloud / low-RAM hosts (avoids huge CUDA installs)
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-torch>=2.0.0
-torchvision>=0.15.0
-numpy>=1.24.0
+streamlit>=1.28.0,<2
+torch==2.2.2
+torchvision==0.17.2
+numpy>=1.24.0,<3
 pillow>=9.5.0
-scikit-learn>=1.3.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
-pandas>=2.0.0
-tqdm>=4.65.0
-opencv-python-headless>=4.8.0
-albumentations>=1.3.0
-kagglehub>=0.2.0
-streamlit>=1.28.0
-plotly>=5.17.0
-nbconvert>=7.0.0
-nbformat>=5.9.0

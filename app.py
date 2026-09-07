@@ -6,37 +6,15 @@ Real-time testing and visualization interface
 import streamlit as st
 import os
 import sys
+from io import BytesIO
+import base64
 
-# CRITICAL: Force CPU before importing torch to prevent CUDA initialization
-# Streamlit Cloud does NOT provide GPU, so we must prevent CUDA from being initialized
-os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Hide CUDA devices
-os.environ['TORCH_USE_CUDA_DSA'] = '0'  # Disable CUDA DSA
-
-import torch
-# CRITICAL: Set default tensor type to CPU to prevent CUDA allocation attempts
-# Wrap in try-except for compatibility with newer PyTorch versions
-try:
-    torch.set_default_tensor_type('torch.FloatTensor')
-except (AttributeError, RuntimeError):
-    # In newer PyTorch versions, this might not be available or necessary
-    # The CUDA_VISIBLE_DEVICES env var should be sufficient
-    pass
+# CRITICAL: Force CPU before any torch import (Streamlit Cloud has no GPU)
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+os.environ['TORCH_USE_CUDA_DSA'] = '0'
 
 import numpy as np
 from PIL import Image
-from torchvision import transforms as T
-try:
-    import albumentations as A
-    from albumentations.pytorch import ToTensorV2
-    ALBUMENTATIONS_AVAILABLE = True
-except ImportError:
-    A = None
-    ToTensorV2 = None
-    ALBUMENTATIONS_AVAILABLE = False
-import plotly.graph_objects as go
-import plotly.express as px
-from io import BytesIO
-import base64
 
 # Page configuration - MUST be first Streamlit call
 st.set_page_config(
@@ -44,10 +22,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# Ensure app can start - add a placeholder that gets replaced
-# This helps with health checks on Streamlit Cloud
-# Note: We don't stop the app here - let it start and show errors in UI
 
 # Add src to path - handle deployment scenarios
 try:
@@ -57,29 +31,80 @@ try:
         app_dir = os.getcwd()
     sys.path.insert(0, app_dir)
 except Exception:
-    # Fallback: just add current directory
     sys.path.insert(0, os.getcwd())
 
-try:
-    from src.model import get_model
-    from src.utils import get_device
-    _model_imports_available = True
-except ImportError as e:
-    # Don't stop the app - allow it to start and show error in UI
-    _model_imports_available = False
-    _model_import_error = str(e)
-    # Create dummy functions so app doesn't crash
-    def get_model(*args, **kwargs):
-        raise ImportError(f"Model utilities not available: {_model_import_error}")
-    def get_device():
-        # CRITICAL: Always return CPU for Streamlit Cloud compatibility
-        return torch.device('cpu')
+# Heavy ML imports are deferred until Load Model / Predict so the UI can boot
+# on Streamlit Cloud's ~1GB free tier without importing torch at startup.
+_torch = None
+_torchvision_T = None
+_get_model = None
+_model_imports_available = None
+_model_import_error = ""
+ALBUMENTATIONS_AVAILABLE = False
+A = None
+ToTensorV2 = None
 
-# Import setup_model for later use (after Streamlit is initialized)
 try:
     import setup_model
 except ImportError:
     setup_model = None
+
+
+def ensure_torch():
+    """Lazy-import torch/torchvision/model code on first ML use."""
+    global _torch, _torchvision_T, _get_model, _model_imports_available, _model_import_error
+    global ALBUMENTATIONS_AVAILABLE, A, ToTensorV2
+
+    if _torch is not None and _model_imports_available is True:
+        return _torch
+
+    try:
+        import torch
+        from torchvision import transforms as T
+        try:
+            torch.set_default_tensor_type('torch.FloatTensor')
+        except (AttributeError, RuntimeError):
+            pass
+
+        from src.model import get_model as _gm
+
+        _torch = torch
+        _torchvision_T = T
+        _get_model = _gm
+        _model_imports_available = True
+        _model_import_error = ""
+    except Exception as e:
+        _model_imports_available = False
+        _model_import_error = str(e)
+        raise ImportError(
+            f"Could not import PyTorch / model utilities: {_model_import_error}"
+        ) from e
+
+    # Optional albumentations (torchvision fallback is fine)
+    if not ALBUMENTATIONS_AVAILABLE:
+        try:
+            import albumentations as _A
+            from albumentations.pytorch import ToTensorV2 as _ToTensorV2
+            A = _A
+            ToTensorV2 = _ToTensorV2
+            ALBUMENTATIONS_AVAILABLE = True
+        except ImportError:
+            A = None
+            ToTensorV2 = None
+            ALBUMENTATIONS_AVAILABLE = False
+
+    return _torch
+
+
+def get_model(*args, **kwargs):
+    ensure_torch()
+    return _get_model(*args, **kwargs)
+
+
+def get_device():
+    """Always CPU on Streamlit Cloud."""
+    torch = ensure_torch()
+    return torch.device('cpu')
 
 # Custom CSS for better styling
 st.markdown("""
@@ -1291,6 +1316,7 @@ def safe_torch_load(path, map_location='cpu'):
     - Rejects Git LFS pointer files with a clear error
     - Uses weights_only=False because training checkpoints include metadata
     """
+    torch = ensure_torch()
     if is_git_lfs_pointer(path):
         raise RuntimeError(
             "Model file is a Git LFS pointer, not the real weights. "
@@ -1399,6 +1425,7 @@ def inspect_checkpoint(model_path):
         }
     
     try:
+        torch = ensure_torch()
         checkpoint = safe_torch_load(resolved_path, map_location='cpu')
         try:
             file_size = os.path.getsize(resolved_path) / (1024 * 1024)
@@ -1457,6 +1484,7 @@ def load_model_robust(_model_path_abs, model_name='resnet50'):
         Tuple of (model, device)
     """
     # CRITICAL: Force CPU for Streamlit Cloud (no GPU available)
+    torch = ensure_torch()
     device = torch.device('cpu')
     
     # Validate that the path exists (should be resolved before calling this function)
@@ -1547,6 +1575,9 @@ def load_model_robust(_model_path_abs, model_name='resnet50'):
 def preprocess_image(image, img_size=224):
     """Preprocess image for model input"""
     try:
+        torch = ensure_torch()
+        T = _torchvision_T
+
         # Convert PIL to numpy array
         if isinstance(image, Image.Image):
             try:
@@ -1564,8 +1595,8 @@ def preprocess_image(image, img_size=224):
         else:
             raise ValueError(f"Unsupported image type: {type(image)}")
         
-        # Apply transforms
-        if ALBUMENTATIONS_AVAILABLE:
+        # Prefer torchvision (always available with our slim requirements)
+        if ALBUMENTATIONS_AVAILABLE and A is not None and ToTensorV2 is not None:
             transform = A.Compose([
                 A.Resize(img_size, img_size),
                 A.Normalize(
@@ -1602,6 +1633,7 @@ def predict_image(model, image_tensor, device):
         raise ValueError("Device is not set. Please load a model first.")
     
     try:
+        torch = ensure_torch()
         # CRITICAL: Force CPU (Streamlit Cloud has no GPU)
         device = torch.device('cpu')
         image_tensor = image_tensor.to(device)
@@ -1797,65 +1829,11 @@ def notebook_to_html(notebook_path):
 
 
 def create_probability_chart(probabilities):
-    """Create a bar chart for class probabilities with enhanced interactivity"""
-    classes = ['No Bleeding', 'Bleeding']
-    # Higher contrast colors - darker greens and reds
-    colors = ['#2e7d32', '#c62828']  # Dark green and dark red
-    hover_colors = ['#1b5e20', '#b71c1c']  # Darker for hover
-    
-    fig = go.Figure(data=[
-        go.Bar(
-            x=classes,
-            y=probabilities * 100,
-            marker_color=colors,
-            text=[f'{p*100:.2f}%' for p in probabilities],
-            textposition='auto',
-            textfont=dict(
-                size=16,
-                color='white',
-                family='Arial Black'
-            ),
-            marker_line=dict(
-                color='white',
-                width=2
-            ),
-            marker_line_color='white',
-            hovertemplate='<b>%{x}</b><br>Probability: %{y:.2f}%<extra></extra>',
-            hoverlabel=dict(
-                bgcolor='rgba(255, 255, 255, 0.9)',
-                font_size=14,
-                font_family='Arial Black'
-            ),
-        )
-    ])
-    
-    fig.update_layout(
-        title=dict(
-            text='Prediction Probabilities',
-            font=dict(size=20, color='#333', family='Arial Black')
-        ),
-        xaxis_title=dict(
-            text='Class',
-            font=dict(size=14, color='#333', family='Arial')
-        ),
-        yaxis_title=dict(
-            text='Probability (%)',
-            font=dict(size=14, color='#333', family='Arial')
-        ),
-        yaxis=dict(range=[0, 100]),
-        height=400,
-        template='plotly_white',
-        font=dict(family='Arial', size=12),
-        xaxis=dict(
-            tickfont=dict(size=13, color='#333', family='Arial Black')
-        ),
-        hovermode='closest',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        showlegend=False
-    )
-    
-    return fig
+    """Return a simple table for Streamlit native bar chart (no plotly)."""
+    return {
+        "No Bleeding": float(probabilities[0] * 100),
+        "Bleeding": float(probabilities[1] * 100),
+    }
 
 
 def page_home(img_size):
@@ -2155,9 +2133,12 @@ def page_home(img_size):
                             unsafe_allow_html=True
                         )
                     
-                    # Probability chart
-                    fig = create_probability_chart(probabilities)
-                    st.plotly_chart(fig, use_container_width=True)
+                    # Probability chart (no plotly — keeps Cloud deps tiny)
+                    chart_data = create_probability_chart(probabilities)
+                    st.subheader("Prediction Probabilities")
+                    for label, pct in chart_data.items():
+                        st.write(f"**{label}** — {pct:.2f}%")
+                        st.progress(min(max(pct / 100.0, 0.0), 1.0))
                     
                     # Detailed metrics
                     st.subheader("Detailed Probabilities")
@@ -2240,10 +2221,23 @@ def page_batch(img_size):
                 
                 st.success(f"Processed {len(results)} images!")
                 
-                # Display results
-                import pandas as pd
-                df = pd.DataFrame(results)
-                st.dataframe(df, use_container_width=True)
+                # Display results (pandas comes with Streamlit; fall back to list)
+                try:
+                    import pandas as pd
+                    df = pd.DataFrame(results)
+                    st.dataframe(df, use_container_width=True)
+                    csv = df.to_csv(index=False)
+                except Exception:
+                    st.dataframe(results, use_container_width=True)
+                    # Minimal CSV without pandas
+                    import csv as _csv
+                    from io import StringIO
+                    buf = StringIO()
+                    if results:
+                        writer = _csv.DictWriter(buf, fieldnames=list(results[0].keys()))
+                        writer.writeheader()
+                        writer.writerows(results)
+                    csv = buf.getvalue()
                 
                 # Summary statistics
                 if len(results) > 0:
@@ -2259,7 +2253,6 @@ def page_batch(img_size):
                         st.metric("Total Processed", len(results))
                 
                 # Download results
-                csv = df.to_csv(index=False)
                 st.download_button(
                     label="Download Results as CSV",
                     data=csv,
@@ -2769,42 +2762,22 @@ def page_about():
 
 
 def main():
-    # CRITICAL: Add startup checkpoint - helps debug if app crashes
-    # This ensures Streamlit has started before we do anything heavy
+    # Keep startup light — do NOT import torch here (Streamlit Cloud RAM).
+    # Torch is loaded lazily when the user clicks Load Model / Predict.
     try:
-        # Check if imports are available and show warning if not
-        if not _model_imports_available:
-            st.error(f"⚠️ Model utilities not available: {_model_import_error}")
-            st.warning("The app will start but model functionality will be limited. Please check that all dependencies are installed correctly.")
-            st.info("This might be due to missing dependencies or import errors. Check the logs for more details.")
-        
-        # CRITICAL: Force CPU device for Streamlit Cloud (no GPU available)
-        # This must be done early to prevent CUDA-related crashes
-        import torch
-        try:
-            if torch.cuda.is_available():
-                # Even if CUDA is available, force CPU for Streamlit Cloud compatibility
-                torch.set_default_tensor_type('torch.FloatTensor')
-        except (AttributeError, RuntimeError):
-            # In newer PyTorch versions, this might not be available or necessary
-            pass
-        
         # Try to setup model file if it doesn't exist (for deployment)
         # This runs after Streamlit is initialized, so secrets are available
-        # Do this in background to not block app startup
         if setup_model is not None:
             try:
                 base_dir = get_app_base_dir()
-                model_path = os.path.join(base_dir, "models", "best_model.pth")
-                if not os.path.exists(model_path):
+                infer_path = os.path.join(base_dir, "models", "best_model_infer.pth")
+                full_path = os.path.join(base_dir, "models", "best_model.pth")
+                if not os.path.exists(infer_path) and not os.path.exists(full_path):
                     try:
-                        # Run setup in background - don't block
                         setup_model.setup_model()
-                    except Exception as e:
-                        # Silently fail if setup_model doesn't work - not critical
+                    except Exception:
                         pass
-            except Exception as e:
-                # Silently fail if setup_model doesn't work - not critical
+            except Exception:
                 pass
     except Exception as e:
         # Don't crash the app - show error and continue
@@ -2948,10 +2921,6 @@ def main():
     # Sidebar for model configuration
     with st.sidebar:
         st.header("Model Configuration")
-        if not ALBUMENTATIONS_AVAILABLE:
-            st.warning(
-                "Albumentations is not installed. Using torchvision preprocessing fallback."
-            )
         
         # Model selection
         model_name = st.selectbox(
