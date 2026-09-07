@@ -151,10 +151,12 @@ streamlit run app.py
 Then open your browser to `http://localhost:8501`
 
 **Streamlit Cloud notes:**
+- In the Streamlit dashboard: **⋮ → Settings → Python version → 3.11 or 3.12** (required for PyTorch; Cloud ignores `runtime.txt`)
 - Prefer `models/best_model_infer.pth` (inference-only, ~99MB) over the full training checkpoint (~295MB) to avoid out-of-memory crashes on the free tier
 - The app does **not** auto-load the model on startup for the same reason — click **Load Model** in the sidebar
 - Demo images live in `samples/` so **Use Test Image** works without downloading the full dataset
 - If the model file is only a Git LFS pointer, set `MODEL_URL` in Streamlit secrets to a direct download URL
+- After dependency changes, use **Manage app → Reboot** so Cloud reinstalls packages
 
 **Web Interface Features:**
 - Upload single or multiple images
