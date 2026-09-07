@@ -1,8 +1,11 @@
-# Prefer CPU wheels on Streamlit Cloud / low-RAM hosts (avoids huge CUDA installs)
+# Minimal deps for Streamlit Community Cloud (~1GB RAM).
+# CPU wheels only — CUDA builds are too large and unnecessary.
+# IMPORTANT: In Streamlit Cloud → ⋮ → Settings → Advanced, set Python to 3.11 or 3.12
+# (Cloud ignores runtime.txt; default 3.13/3.14 often cannot install torch).
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 streamlit>=1.28.0,<2
-torch==2.2.2
-torchvision==0.17.2
 numpy>=1.24.0,<3
 pillow>=9.5.0
+torch
+torchvision

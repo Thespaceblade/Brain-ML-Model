@@ -1,2 +1,0 @@
-# Streamlit Cloud: pin a Python that has CPU torch 2.2 wheels
-python-3.11.9
