@@ -35,8 +35,16 @@ cd Brain-ML-Model
 
 ### 2. Install Dependencies
 
+For the Streamlit app / inference (also what Streamlit Cloud installs):
+
 ```bash
 pip install -r requirements.txt
+```
+
+For local training, evaluation, notebooks, and dataset download:
+
+```bash
+pip install -r requirements-train.txt
 ```
 
 ### 3. Prepare Dataset
