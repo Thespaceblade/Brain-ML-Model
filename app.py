@@ -1244,6 +1244,8 @@ if 'auto_load_attempted' not in st.session_state:
     st.session_state.auto_load_attempted = False
 if 'selected_sample_image' not in st.session_state:
     st.session_state.selected_sample_image = None
+if 'checkpoint_info' not in st.session_state:
+    st.session_state.checkpoint_info = None
 
 
 def get_app_base_dir():
@@ -1266,6 +1268,80 @@ def get_app_base_dir():
     
     # Last resort: use current working directory
     return os.getcwd()
+
+
+def is_git_lfs_pointer(path):
+    """Return True if path is a Git LFS pointer text file, not real weights."""
+    try:
+        if not path or not os.path.isfile(path):
+            return False
+        # Real checkpoints are many MB; LFS pointers are ~100-200 bytes
+        if os.path.getsize(path) > 2048:
+            return False
+        with open(path, 'rb') as f:
+            head = f.read(128)
+        return head.startswith(b'version https://git-lfs.github.com/spec/v1')
+    except (OSError, IOError):
+        return False
+
+
+def safe_torch_load(path, map_location='cpu'):
+    """Load a checkpoint safely for Streamlit Cloud / PyTorch 2.6+.
+
+    - Rejects Git LFS pointer files with a clear error
+    - Uses weights_only=False because training checkpoints include metadata
+    """
+    if is_git_lfs_pointer(path):
+        raise RuntimeError(
+            "Model file is a Git LFS pointer, not the real weights. "
+            "Streamlit Cloud did not download LFS objects. "
+            "Fix: enable Git LFS for the deployment, or host the model "
+            "elsewhere and set MODEL_URL in Streamlit secrets."
+        )
+    # PyTorch 2.6+ defaults weights_only=True, which breaks full checkpoints
+    try:
+        return torch.load(path, map_location=map_location, weights_only=False)
+    except TypeError:
+        # Older torch without weights_only kwarg
+        return torch.load(path, map_location=map_location)
+
+
+def get_default_model_path():
+    """Prefer slim inference weights to avoid Streamlit Cloud OOM."""
+    base = get_app_base_dir()
+    candidates = [
+        os.path.join(base, "models", "best_model_infer.pth"),
+        os.path.join(base, "models", "best_model.pth"),
+        "models/best_model_infer.pth",
+        "models/best_model.pth",
+    ]
+    for path in candidates:
+        if os.path.isfile(path) and not is_git_lfs_pointer(path) and os.path.getsize(path) >= 1024 * 1024:
+            # Prefer relative path for display when under app dir
+            try:
+                rel = os.path.relpath(path, base)
+                if not rel.startswith('..'):
+                    return rel.replace('\\', '/')
+            except ValueError:
+                pass
+            return path
+    return "models/best_model_infer.pth"
+
+
+def _image_dirs_for_category(category):
+    """Return candidate directories for sample/test images (samples/ preferred)."""
+    base = get_app_base_dir()
+    if category == 'Bleeding':
+        subdirs = [
+            os.path.join(base, "samples", "bleeding"),
+            os.path.join(base, "data", "test", "bleeding"),
+        ]
+    else:
+        subdirs = [
+            os.path.join(base, "samples", "no_bleeding"),
+            os.path.join(base, "data", "test", "no_bleeding"),
+        ]
+    return subdirs
 
 
 def resolve_model_path(model_path):
@@ -1314,9 +1390,16 @@ def inspect_checkpoint(model_path):
     resolved_path = resolve_model_path(model_path)
     if not resolved_path:
         return {'error': f'Model file not found at: {model_path}'}
+
+    if is_git_lfs_pointer(resolved_path):
+        return {
+            'error': 'File is a Git LFS pointer (weights not downloaded)',
+            'path': resolved_path,
+            'size_bytes': os.path.getsize(resolved_path),
+        }
     
     try:
-        checkpoint = torch.load(resolved_path, map_location='cpu')
+        checkpoint = safe_torch_load(resolved_path, map_location='cpu')
         try:
             file_size = os.path.getsize(resolved_path) / (1024 * 1024)
         except (OSError, Exception):
@@ -1325,23 +1408,29 @@ def inspect_checkpoint(model_path):
         info = {
             'type': type(checkpoint).__name__,
             'keys': None,
-            'size_mb': file_size,
+            'size_mb': round(float(file_size), 2),
             'path': resolved_path
         }
         
         if isinstance(checkpoint, dict):
-            info['keys'] = list(checkpoint.keys())
-            # Get additional info for common keys
+            info['keys'] = [str(k) for k in checkpoint.keys()]
+            # Get additional info for common keys (JSON-serializable only)
             if 'epoch' in checkpoint:
-                info['epoch'] = checkpoint['epoch']
+                info['epoch'] = int(checkpoint['epoch'])
             if 'accuracy' in checkpoint:
-                info['accuracy'] = checkpoint['accuracy']
+                info['accuracy'] = float(checkpoint['accuracy'])
             if 'loss' in checkpoint:
-                info['loss'] = checkpoint['loss']
+                info['loss'] = float(checkpoint['loss'])
+            if 'arch' in checkpoint:
+                info['arch'] = str(checkpoint['arch'])
+            info['has_optimizer'] = 'optimizer_state_dict' in checkpoint
         elif isinstance(checkpoint, torch.nn.Module):
             info['type'] = 'Model (direct)'
         else:
             info['type'] = f'{type(checkpoint).__name__} (unexpected)'
+
+        # Free checkpoint ASAP to reduce peak memory on Streamlit Cloud
+        del checkpoint
         
         return info
     except Exception as e:
@@ -1389,37 +1478,48 @@ def load_model_robust(_model_path_abs, model_name='resnet50'):
     # Load checkpoint with format detection
     try:
         # CRITICAL: Use map_location='cpu' to force CPU loading (prevents CUDA errors on Streamlit Cloud)
-        checkpoint = torch.load(_model_path_abs, map_location='cpu')
+        checkpoint = safe_torch_load(_model_path_abs, map_location='cpu')
         
         # Handle different checkpoint formats
         if isinstance(checkpoint, dict):
             # Format 1: Standard checkpoint with 'model_state_dict'
             if 'model_state_dict' in checkpoint:
-                model.load_state_dict(checkpoint['model_state_dict'])
+                state_dict = checkpoint['model_state_dict']
             # Format 2: Direct state_dict
             elif 'state_dict' in checkpoint:
-                model.load_state_dict(checkpoint['state_dict'])
+                state_dict = checkpoint['state_dict']
             # Format 3: Checkpoint is the state_dict itself
             else:
                 # Try to load as state_dict directly
                 try:
-                    model.load_state_dict(checkpoint)
+                    state_dict = checkpoint
+                    # Probe whether keys look like a state_dict
+                    _ = next(iter(state_dict.keys()))
                 except Exception as e:
                     # If that fails, try to find any dict that looks like state_dict
                     loaded = False
-                    for key in checkpoint.keys():
+                    state_dict = None
+                    for key in list(checkpoint.keys()):
                         if isinstance(checkpoint[key], dict) and len(checkpoint[key]) > 0:
                             try:
                                 model.load_state_dict(checkpoint[key])
                                 loaded = True
+                                state_dict = None  # already loaded
                                 break
-                            except:
+                            except Exception:
                                 continue
                     if not loaded:
                         raise ValueError(f"Could not find model weights in checkpoint. Available keys: {list(checkpoint.keys())}")
+
+            if state_dict is not None:
+                model.load_state_dict(state_dict)
+                del state_dict
         else:
             # Checkpoint might be state_dict directly
             model.load_state_dict(checkpoint)
+
+        # Drop full checkpoint (may include optimizer) to free RAM on Streamlit Cloud
+        del checkpoint
         
         model.eval()
         return model, device
@@ -1431,7 +1531,7 @@ def load_model_robust(_model_path_abs, model_name='resnet50'):
             error_details = f"Failed to load model checkpoint: {str(e)}\n\n"
             error_details += f"Checkpoint info: {checkpoint_info}\n\n"
             error_details += "Expected format: dict with 'model_state_dict' or 'state_dict' key, or direct state_dict."
-        except:
+        except Exception:
             error_details = f"Failed to load model checkpoint: {str(e)}\n\n"
             error_details += f"Model path: {_model_path_abs}\n"
             error_details += f"File exists: {os.path.exists(_model_path_abs)}\n"
@@ -1523,110 +1623,83 @@ def predict_image(model, image_tensor, device):
 
 
 def get_test_images():
-    """Get available test images from the data/test directory"""
+    """Get available test/sample images (samples/ first, then data/test)."""
     try:
-        base_dir = get_app_base_dir()
-        bleeding_dir = os.path.join(base_dir, "data", "test", "bleeding")
-        no_bleeding_dir = os.path.join(base_dir, "data", "test", "no_bleeding")
-        
         test_images = {
             'Bleeding': [],
             'No Bleeding': []
         }
         
-        # Get bleeding images
-        if os.path.exists(bleeding_dir):
-            try:
-                bleeding_files = sorted([f for f in os.listdir(bleeding_dir) 
-                                        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
-                test_images['Bleeding'] = bleeding_files[:50]  # Limit to first 50 for performance
-            except (OSError, PermissionError) as e:
-                # Silently fail if directory can't be read
-                pass
-        
-        # Get no bleeding images
-        if os.path.exists(no_bleeding_dir):
-            try:
-                no_bleeding_files = sorted([f for f in os.listdir(no_bleeding_dir) 
-                                            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
-                test_images['No Bleeding'] = no_bleeding_files[:50]  # Limit to first 50 for performance
-            except (OSError, PermissionError) as e:
-                # Silently fail if directory can't be read
-                pass
+        for category in ('Bleeding', 'No Bleeding'):
+            seen = set()
+            files = []
+            for directory in _image_dirs_for_category(category):
+                if not os.path.exists(directory):
+                    continue
+                try:
+                    for name in sorted(os.listdir(directory)):
+                        if not name.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
+                            continue
+                        if name in seen:
+                            continue
+                        seen.add(name)
+                        files.append(name)
+                except (OSError, PermissionError):
+                    continue
+            test_images[category] = files[:50]
         
         return test_images
-    except Exception as e:
-        # Return empty dict if anything fails
+    except Exception:
         return {'Bleeding': [], 'No Bleeding': []}
 
 
 def get_sample_images(num_samples=4):
-    """Get a small sample of test images for the draggable preview section"""
+    """Get a small sample of test images for the quick-select section."""
     try:
-        base_dir = get_app_base_dir()
-        bleeding_dir = os.path.join(base_dir, "data", "test", "bleeding")
-        no_bleeding_dir = os.path.join(base_dir, "data", "test", "no_bleeding")
-        
         samples = []
         
-        # Get bleeding samples
-        if os.path.exists(bleeding_dir):
-            try:
-                bleeding_files = sorted([f for f in os.listdir(bleeding_dir) 
-                                    if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
-                for i, filename in enumerate(bleeding_files[:num_samples]):
-                    if i < num_samples:
-                        image_path = os.path.join(bleeding_dir, filename)
+        for category in ('Bleeding', 'No Bleeding'):
+            count = 0
+            for directory in _image_dirs_for_category(category):
+                if not os.path.exists(directory):
+                    continue
+                try:
+                    files = sorted(
+                        f for f in os.listdir(directory)
+                        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))
+                    )
+                    for filename in files:
+                        if count >= num_samples:
+                            break
+                        image_path = os.path.join(directory, filename)
                         if os.path.exists(image_path):
                             samples.append({
                                 'filename': filename,
-                                'category': 'Bleeding',
+                                'category': category,
                                 'path': image_path
                             })
-            except (OSError, PermissionError):
-                # Silently fail if directory can't be read
-                pass
-        
-        # Get no bleeding samples
-        if os.path.exists(no_bleeding_dir):
-            try:
-                no_bleeding_files = sorted([f for f in os.listdir(no_bleeding_dir) 
-                                        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))])
-                for i, filename in enumerate(no_bleeding_files[:num_samples]):
-                    if i < num_samples:
-                        image_path = os.path.join(no_bleeding_dir, filename)
-                        if os.path.exists(image_path):
-                            samples.append({
-                                'filename': filename,
-                                'category': 'No Bleeding',
-                                'path': image_path
-                            })
-            except (OSError, PermissionError):
-                # Silently fail if directory can't be read
-                pass
+                            count += 1
+                except (OSError, PermissionError):
+                    continue
+                if count >= num_samples:
+                    break
         
         return samples
     except Exception:
-        # Return empty list if anything fails
         return []
 
 
 def load_test_image(category, filename):
-    """Load a test image from the data/test directory"""
+    """Load a test/sample image by category and filename."""
     try:
-        base_dir = get_app_base_dir()
-        if category == 'Bleeding':
-            image_path = os.path.join(base_dir, "data", "test", "bleeding", filename)
-        else:
-            image_path = os.path.join(base_dir, "data", "test", "no_bleeding", filename)
-        
-        if os.path.exists(image_path):
-            try:
-                return Image.open(image_path)
-            except (IOError, OSError, Exception) as e:
-                raise FileNotFoundError(f"Error opening image file {image_path}: {str(e)}")
-        else:
-            raise FileNotFoundError(f"Test image not found: {image_path}")
+        for directory in _image_dirs_for_category(category):
+            image_path = os.path.join(directory, filename)
+            if os.path.exists(image_path):
+                try:
+                    return Image.open(image_path)
+                except (IOError, OSError, Exception) as e:
+                    raise FileNotFoundError(f"Error opening image file {image_path}: {str(e)}")
+        raise FileNotFoundError(f"Test image not found for {category}/{filename}")
     except FileNotFoundError:
         raise
     except Exception as e:
@@ -1888,7 +1961,10 @@ def page_home(img_size):
             test_images = get_test_images()
             
             if len(test_images['Bleeding']) == 0 and len(test_images['No Bleeding']) == 0:
-                st.warning("No test images found in data/test directory.")
+                st.warning(
+                    "No test images found. Add images under `samples/bleeding` and "
+                    "`samples/no_bleeding`, or `data/test/...`."
+                )
             else:
                 available_categories = []
                 if len(test_images['Bleeding']) > 0:
@@ -2887,17 +2963,29 @@ def main():
         
         # Model path input
         st.subheader("Load Model")
-        
+
+        default_model_path = get_default_model_path()
         model_path_input = st.text_input(
             "Model Path",
-            value="models/best_model.pth",
-            help="Path to the trained model checkpoint"
+            value=default_model_path,
+            help="Path to the trained model checkpoint (prefer models/best_model_infer.pth on Streamlit Cloud)"
         )
         
         # Try to resolve the path and show status
         resolved_path = resolve_model_path(model_path_input) if model_path_input else None
-        if resolved_path:
-            st.success(f"✓ Model found: {resolved_path}")
+        if resolved_path and is_git_lfs_pointer(resolved_path):
+            st.error(
+                "Model path points to a Git LFS pointer (weights not downloaded). "
+                "Click Load Model will fail until LFS objects are available or MODEL_URL is set."
+            )
+        elif resolved_path:
+            size_mb = os.path.getsize(resolved_path) / (1024 * 1024)
+            st.success(f"✓ Model found: {resolved_path} ({size_mb:.1f} MB)")
+            if size_mb > 200:
+                st.info(
+                    "Large training checkpoint detected. Prefer `models/best_model_infer.pth` "
+                    "on Streamlit Cloud to avoid out-of-memory crashes."
+                )
         elif model_path_input:
             st.warning(f"[WARNING] Model not found at: {model_path_input}")
             try:
@@ -2907,41 +2995,25 @@ def main():
             except Exception:
                 st.info(f"Current directory: {os.getcwd()}")
         
-        # Auto-load model if it exists and hasn't been loaded yet (only once)
-        if (resolved_path and 
-            not st.session_state.model_loaded and 
-            not st.session_state.auto_load_attempted and
-            (st.session_state.model_path is None or st.session_state.model_path != resolved_path)):
-            st.session_state.auto_load_attempted = True
-            try:
-                with st.spinner("Auto-loading model..."):
-                    # Clear cache to ensure fresh load
-                    load_model_robust.clear()
-                    # Pass resolved absolute path to cached function
-                    model, device = load_model_robust(resolved_path, model_name)
-                    st.session_state.model = model
-                    st.session_state.device = device
-                    st.session_state.model_loaded = True
-                    st.session_state.model_path = resolved_path
-                st.success("✓ Model auto-loaded successfully!")
-                # CRITICAL: Always show CPU (Streamlit Cloud has no GPU)
-                device_name = "CPU"
-                st.info(f"Running on: {device_name} (Streamlit Cloud uses CPU only)")
-            except Exception as e:
-                # Show a warning but don't block the app
-                st.warning(f"Auto-load failed. Please load manually. Error: {str(e)}")
-                st.session_state.model_loaded = False
+        # Do NOT auto-load on startup. Loading a ~100-300MB checkpoint at boot
+        # frequently OOMs Streamlit Cloud's ~1GB free tier and hard-crashes the app.
+        if not st.session_state.model_loaded:
+            st.caption("Click **Load Model** when ready (auto-load disabled to prevent cloud OOM).")
         
         # Inspect checkpoint button
         if st.button("Inspect Checkpoint", use_container_width=True):
             if resolved_path:
                 try:
-                    info = inspect_checkpoint(model_path_input)
-                    st.json(info)
+                    info = inspect_checkpoint(resolved_path)
+                    st.session_state.checkpoint_info = info
                 except Exception as e:
-                    st.error(f"Error inspecting checkpoint: {str(e)}")
+                    st.session_state.checkpoint_info = {'error': str(e)}
             else:
                 st.warning("Please enter a valid model path first")
+
+        if st.session_state.checkpoint_info is not None:
+            with st.expander("Checkpoint details", expanded=True):
+                st.json(st.session_state.checkpoint_info)
         
         # Load model button
         if st.button("Load Model", type="primary", use_container_width=True):

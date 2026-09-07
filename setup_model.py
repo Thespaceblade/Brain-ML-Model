@@ -8,7 +8,9 @@ import os
 import urllib.request
 import hashlib
 
-MODEL_PATH = "models/best_model.pth"
+# Prefer slim inference weights on Streamlit Cloud (full training ckpt can OOM)
+MODEL_PATH = "models/best_model_infer.pth"
+FALLBACK_MODEL_PATH = "models/best_model.pth"
 MODEL_DIR = "models"
 
 
@@ -54,10 +56,17 @@ def setup_model(model_url=None):
         bool: True if model exists or was successfully downloaded, False otherwise
     """
     try:
-        # Check if model already exists
-        if check_model_exists(MODEL_PATH):
-            file_size = os.path.getsize(MODEL_PATH) / (1024 * 1024)
-            return True
+        # Check if slim or full model already exists and is not an LFS pointer
+        for path in (MODEL_PATH, FALLBACK_MODEL_PATH):
+            if check_model_exists(path):
+                try:
+                    with open(path, 'rb') as f:
+                        head = f.read(64)
+                    if head.startswith(b'version https://git-lfs.github.com/spec/v1'):
+                        continue
+                except (OSError, IOError):
+                    pass
+                return True
         
         # Get model URL from parameter, Streamlit secrets, or environment variable
         url = model_url
@@ -83,7 +92,7 @@ def setup_model(model_url=None):
                 return False
         else:
             return False
-    except Exception as e:
+    except Exception:
         # Silently fail - don't break the app if setup fails
         return False
 
